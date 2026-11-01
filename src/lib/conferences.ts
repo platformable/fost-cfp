@@ -4,6 +4,8 @@ import type { User } from './auth';
 export const DEFAULT_FORMATS = ['Talk (30 min)', 'Lightning talk (10 min)', 'Workshop (90 min)', 'Panel (45 min)'];
 export const LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'All levels'];
 
+export type DatePrecision = 'day' | 'month';
+
 export type CfpState = 'open' | 'upcoming' | 'closed' | 'archived';
 
 export interface ConferenceRow {
@@ -15,6 +17,8 @@ export interface ConferenceRow {
   website: string;
   start_date: string | null;
   end_date: string | null;
+  // 'month': only the month and year of start_date are known (start_date is the 1st, end_date is null).
+  date_precision: DatePrecision;
   cfp_opens: string | null;
   cfp_closes: string | null;
   topics: string;
@@ -91,15 +95,47 @@ export function slugify(text: string): string {
 const TEXT_FIELDS = ['name', 'description', 'location', 'website', 'topics', 'formats'] as const;
 const DATE_FIELDS = ['start_date', 'end_date', 'cfp_opens', 'cfp_closes'] as const;
 
-export type ConferenceInput = Record<(typeof TEXT_FIELDS)[number] | (typeof DATE_FIELDS)[number] | 'slug', string> & { blind_review: boolean };
+export type ConferenceInput = Record<(typeof TEXT_FIELDS)[number] | (typeof DATE_FIELDS)[number] | 'slug', string> & {
+  blind_review: boolean;
+  date_precision: DatePrecision;
+  // Month-only form fields, kept so the form can be shown again after an error.
+  start_month: string;
+  start_year: string;
+};
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+// Last day of the month that a 'YYYY-MM-01' date falls in.
+export const lastDayOfMonth = (firstOfMonth: string) => {
+  const [y, m] = firstOfMonth.split('-').map(Number);
+  return `${y}-${pad2(m)}-${pad2(new Date(Date.UTC(y, m, 0)).getUTCDate())}`;
+};
 
 export function readConferenceForm(form: FormData): { values: ConferenceInput; errors: string[] } {
   const get = (k: string) => String(form.get(k) ?? '').trim();
   const values = Object.fromEntries([...TEXT_FIELDS, ...DATE_FIELDS].map((f) => [f, get(f)])) as unknown as ConferenceInput;
   values.blind_review = form.get('blind_review') != null;
   values.slug = slugify(get('slug') || values.name);
+  values.date_precision = get('date_precision') === 'month' ? 'month' : 'day';
+  values.start_month = get('start_month');
+  values.start_year = get('start_year');
   const errors: string[] = [];
   if (!values.name) errors.push('Name is required.');
+  if (values.date_precision === 'month') {
+    // Month only: store the first of the month and no end date.
+    const month = Number(values.start_month);
+    const year = Number(values.start_year);
+    values.end_date = '';
+    if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) {
+      values.start_date = '';
+      errors.push('Choose the month and year the conference takes place.');
+    } else {
+      values.start_date = `${year}-${pad2(month)}-01`;
+      if (values.cfp_closes && values.cfp_closes > lastDayOfMonth(values.start_date)) {
+        errors.push('The call must close before the end of the conference month.');
+      }
+    }
+  }
   for (const f of DATE_FIELDS) {
     if (values[f] && !/^\d{4}-\d{2}-\d{2}$/.test(values[f])) errors.push(`${f.replace('_', ' ')} must be a date.`);
   }
@@ -108,7 +144,7 @@ export function readConferenceForm(form: FormData): { values: ConferenceInput; e
   return { values, errors };
 }
 
-const COLUMNS = [...TEXT_FIELDS, ...DATE_FIELDS, 'blind_review', 'slug'] as const;
+const COLUMNS = [...TEXT_FIELDS, ...DATE_FIELDS, 'date_precision', 'blind_review', 'slug'] as const;
 const columnValue = (v: ConferenceInput, c: (typeof COLUMNS)[number]) =>
   (DATE_FIELDS as readonly string[]).includes(c) ? (v[c as keyof ConferenceInput] || null) : v[c as keyof ConferenceInput];
 

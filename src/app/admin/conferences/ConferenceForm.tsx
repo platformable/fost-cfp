@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import type { ConferenceFormState } from '@/actions/admin';
 import { SubmitButton } from '@/components/SubmitButton';
 import { Errors } from '@/components/ui';
+import { ConferenceDates } from './ConferenceDates';
 
 type Values = Record<string, unknown>;
 
@@ -25,10 +26,7 @@ export function ConferenceForm({ action, initial, isNew }: {
         <label>Location <input name="location" defaultValue={s('location')} /></label>
         <label>Website <input name="website" defaultValue={s('website')} placeholder="https://" /></label>
       </div>
-      <div className="field-row">
-        <label>Starts <input type="date" name="start_date" defaultValue={s('start_date')} /></label>
-        <label>Ends <input type="date" name="end_date" defaultValue={s('end_date')} /></label>
-      </div>
+      <ConferenceDates values={v} />
       <div className="field-row">
         <label>CFP opens <span className="opt">blank = now</span><input type="date" name="cfp_opens" defaultValue={s('cfp_opens')} /></label>
         <label>CFP closes <span className="opt">end of day; blank = never</span><input type="date" name="cfp_closes" defaultValue={s('cfp_closes')} /></label>

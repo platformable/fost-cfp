@@ -72,13 +72,13 @@ export function publicStatus(p: Pick<Proposal, 'status'>, conf: Pick<Conference,
 const DAY_MS = 86400000;
 
 // Speakers may keep editing after the call closes, right up to the conference:
-// the last editing day is the day before start_date. No start date = no deadline.
-export function editDeadline(conf: Pick<Conference, 'start_date'>): string {
-  if (!conf.start_date) return '';
+// the last editing day is the day before start_date. No start date, or only the month known = no deadline yet.
+export function editDeadline(conf: Pick<Conference, 'start_date' | 'date_precision'>): string {
+  if (!conf.start_date || conf.date_precision === 'month') return '';
   return new Date(Date.parse(`${conf.start_date}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10);
 }
 
-type EditConf = Pick<Conference, 'start_date' | 'archived' | 'decisions_published'>;
+type EditConf = Pick<Conference, 'start_date' | 'date_precision' | 'archived' | 'decisions_published'>;
 type EditProposal = Pick<Proposal, 'status' | 'speaker_confirmation'>;
 
 export function canSpeakerEdit(p: EditProposal, conf: EditConf, today = todayUtc()): boolean {
@@ -105,6 +105,9 @@ export function editWindow(p: EditProposal, conf: EditConf, today = todayUtc()):
   const deadline = editDeadline(conf);
   const editable = canSpeakerEdit(p, conf, today);
   if (!editable) return { editable, deadline, daysLeft: null, label: 'Editing closed', tone: 'closed' };
+  if (!deadline && conf.start_date && conf.date_precision === 'month') {
+    return { editable, deadline, daysLeft: null, label: 'Edit deadline set once dates are confirmed', tone: 'open' };
+  }
   if (!deadline) return { editable, deadline, daysLeft: null, label: 'No edit deadline', tone: 'open' };
   const daysLeft = Math.round((Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS);
   const label = daysLeft === 0 ? 'Last day to edit' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left to edit`;

@@ -1,0 +1,48 @@
+schema: spec-driven
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+context: |
+  The people using this app (speakers, reviewers, organisers) are not technical. User-facing copy is
+  British English, plain and specific, and follows the FOST style guide (Inter, rich-black and orange).
+  Spreadsheet export column names are a contract with outside automations (mail merges, Google Sheets,
+  Zapier): renaming or removing a column is a breaking change and must be called out in the proposal.
+  Database changes go in a new numbered file in db/migrations; never edit a migration that has shipped.
+  Every data change goes through a server action in src/actions with a role check; business rules belong
+  in src/lib and are covered by the integration tests in test/.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+rules:
+  design:
+    - >-
+      Include a "Data model" section with a JSON Schema (draft 2020-12) in a ```json block. Cover every
+      database table and every external payload object (events, API responses, exports) the change
+      adds, changes or relies on. Mark each new or changed property in its "description" with
+      "NEW:" or "CHANGED:", and list removed properties in the section's text. Keep types, nullability,
+      enums and formats (email, date, date-time, uri) accurate to the migration and code.
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

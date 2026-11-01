@@ -232,7 +232,7 @@ describe('proposal lifecycle', () => {
 });
 
 describe('edit window', () => {
-  const conf = { start_date: '2027-03-10', archived: false, decisions_published: false };
+  const conf = { start_date: '2027-03-10', date_precision: 'day' as const, archived: false, decisions_published: false };
   const p = { status: 'submitted' as const, speaker_confirmation: '' as const };
 
   test('runs to the day before the conference, not the CFP close', () => {
@@ -245,10 +245,102 @@ describe('edit window', () => {
     assert.equal(props.editWindow(p, { ...conf, start_date: null }, '2030-01-01').label, 'No edit deadline');
   });
 
+  test('month-only dates: speakers can edit, deadline set once dates are confirmed', () => {
+    const month = { ...conf, start_date: '2027-06-01', date_precision: 'month' as const };
+    assert.equal(props.editDeadline(month), '');
+    assert.deepEqual(props.editWindow(p, month, '2027-06-20'), { editable: true, deadline: '', daysLeft: null, label: 'Edit deadline set once dates are confirmed', tone: 'open' });
+  });
+
   test('hidden decisions do not lock the speaker out', () => {
     assert.equal(props.canSpeakerEdit({ status: 'rejected', speaker_confirmation: '' }, conf, '2027-02-01'), true);
     assert.equal(props.canSpeakerEdit({ status: 'rejected', speaker_confirmation: '' }, { ...conf, decisions_published: true }, '2027-02-01'), false);
     assert.equal(props.canSpeakerEdit({ status: 'accepted', speaker_confirmation: 'declined' }, { ...conf, decisions_published: true }, '2027-02-01'), false);
     assert.equal(props.canSpeakerEdit({ status: 'withdrawn', speaker_confirmation: '' }, conf, '2027-02-01'), false);
+  });
+});
+
+describe('month-only conference dates', () => {
+  test('organisers can create a conference with only the month, then confirm exact dates', async () => {
+    const conf = await newConference({ name: 'FOST GreenIO 2027', date_precision: 'month', start_month: '6', start_year: '2027', cfp_closes: '2027-05-15' });
+    assert.equal(conf.date_precision, 'month');
+    assert.equal(conf.start_date, '2027-06-01');
+    assert.equal(conf.end_date, null);
+    assert.equal(conf.cfpOpen, true, 'the call can open while only the month is known');
+
+    const { values, errors } = confs.readConferenceForm(form({ name: 'FOST GreenIO 2027', date_precision: 'day', start_date: '2027-06-10', end_date: '2027-06-11' }));
+    assert.deepEqual(errors, []);
+    await confs.saveConference(values, conf.id);
+    const exact = (await confs.getConference(conf.id))!;
+    assert.equal(exact.date_precision, 'day');
+    assert.equal(exact.start_date, '2027-06-10');
+    assert.equal(exact.end_date, '2027-06-11');
+  });
+
+  test('month-only dates are validated', () => {
+    const late = confs.readConferenceForm(form({ name: 'X', date_precision: 'month', start_month: '6', start_year: '2027', cfp_closes: '2027-07-05' }));
+    assert.deepEqual(late.errors, ['The call must close before the end of the conference month.']);
+    const lastDay = confs.readConferenceForm(form({ name: 'X', date_precision: 'month', start_month: '6', start_year: '2027', cfp_closes: '2027-06-30' }));
+    assert.deepEqual(lastDay.errors, [], 'closing on the last day of the month is allowed');
+    const missing = confs.readConferenceForm(form({ name: 'X', date_precision: 'month', start_month: '', start_year: '2027' }));
+    assert.deepEqual(missing.errors, ['Choose the month and year the conference takes place.']);
+    const noDates = confs.readConferenceForm(form({ name: 'X', date_precision: 'day' }));
+    assert.deepEqual(noDates.errors, [], 'dates can still be left out');
+    assert.equal(confs.lastDayOfMonth('2028-02-01'), '2028-02-29');
+  });
+});
+
+describe('showing conference dates', () => {
+  test('month-only dates show as the month and year', async () => {
+    const { conferenceDates } = await import('../src/lib/format');
+    assert.equal(conferenceDates({ start_date: '2027-06-01', end_date: null, date_precision: 'month' }), 'June 2027');
+    assert.equal(conferenceDates({ start_date: '2027-06-10', end_date: '2027-06-11', date_precision: 'day' }), '10 Jun 2027 – 11 Jun 2027');
+    assert.equal(conferenceDates({ start_date: '2027-06-10', end_date: null, date_precision: 'day' }), '10 Jun 2027');
+    assert.equal(conferenceDates({ start_date: null, end_date: null, date_precision: 'day' }), '');
+  });
+
+  test('month-only conferences sort by their month; undated ones come last', async () => {
+    await pool().query('DELETE FROM conferences');
+    await newConference({ name: 'No dates yet' });
+    await newConference({ name: 'Early June', start_date: '2027-06-03' });
+    await newConference({ name: 'June month only', date_precision: 'month', start_month: '6', start_year: '2027' });
+    await newConference({ name: 'Late May', start_date: '2027-05-20' });
+    assert.deepEqual((await confs.listConferences()).map((c) => c.name), ['Late May', 'June month only', 'Early June', 'No dates yet']);
+  });
+});
+
+describe('confirming exact dates sets the edit deadline', () => {
+  test('a proposal shows the countdown once exact dates are saved', async () => {
+    const speaker = (await users.register({ first_name: 'Hedy', last_name: 'Lamarr', email: 'hedy@example.com', organization: '' }, 'password123')).user!;
+    const conf = await newConference({ name: 'Month then exact', date_precision: 'month', start_month: '12', start_year: '2099' });
+    const r = await submit(speaker.id, [conf], { title: 'Frequency hopping', abstract: 'Spread spectrum.', [`format_${conf.id}`]: 'Talk (30 min)' });
+    const p = (await props.getProposal(r.ids[0]))!;
+    assert.equal(props.editWindow(p, conf).label, 'Edit deadline set once dates are confirmed');
+    const { values } = confs.readConferenceForm(form({ name: 'Month then exact', date_precision: 'day', start_date: '2099-12-10' }));
+    await confs.saveConference(values, conf.id);
+    const exact = (await confs.getConference(conf.id))!;
+    assert.equal(props.editDeadline(exact), '2099-12-09');
+    assert.match(props.editWindow(p, exact).label, /^\d+ days left to edit$/);
+  });
+});
+
+describe('conferences export', () => {
+  test('appends date_precision and dates_display, keeping existing columns in place', async () => {
+    await newConference({ name: 'Export month only', date_precision: 'month', start_month: '6', start_year: '2027' });
+    await newConference({ name: 'Export undated' });
+    const rows = await exp.DATASETS.conferences({});
+    const cols = Object.keys(rows[0]);
+    assert.deepEqual(cols, ['conference_id', 'name', 'slug', 'location', 'website', 'start_date', 'end_date', 'cfp_opens', 'cfp_closes',
+      'topics', 'blind_review', 'decisions_published', 'archived', 'proposals_total', 'proposals_accepted', 'talks_confirmed',
+      'date_precision', 'dates_display']);
+    const month = rows.find((r) => r.name === 'Export month only')!;
+    assert.equal(month.start_date, '2027-06-01');
+    assert.equal(month.end_date, '');
+    assert.equal(month.date_precision, 'month');
+    assert.equal(month.dates_display, 'June 2027');
+    const undated = rows.find((r) => r.name === 'Export undated')!;
+    assert.equal(undated.date_precision, '');
+    assert.equal(undated.dates_display, '');
+    const csvHeader = exp.toCsv(rows).split('\r\n')[0];
+    assert.match(csvHeader, /,talks_confirmed,date_precision,dates_display$/);
   });
 });

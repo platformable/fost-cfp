@@ -50,6 +50,14 @@ async function main() {
     topics: 'Maintainership\nCommunity\nTooling', blind: true,
   });
 
+  // A conference whose call is open while only the month is known (shown as e.g. "June 2027").
+  const monthStart = new Date(Date.now() + 240 * 86400000);
+  await query(`INSERT INTO conferences (name, slug, description, location, start_date, date_precision, cfp_opens, cfp_closes, topics)
+    VALUES ($1, $2, $3, $4, $5, 'month', $6, $7, $8)`,
+  ['FOST GreenIO Summit', 'greenio-summit', 'Sustainable software, green IT and the energy cost of AI.', 'Paris, France',
+    `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, '0')}-01`, iso(-5), iso(120),
+    'Measuring software energy use\nGreen cloud and data centres\nSustainable AI']);
+
   for (const [c, u] of [[apiConf, r1], [apiConf, r2], [osConf, r1]]) {
     await query('INSERT INTO conference_reviewers (conference_id, user_id) VALUES ($1, $2)', [c, u]);
   }

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { listConferences } from '@/lib/conferences';
-import { CFP_LABELS, dateRange, formatDate } from '@/lib/format';
+import { CFP_LABELS, conferenceDates, formatDate } from '@/lib/format';
 import { currentUser } from '@/lib/session';
 import { Badge } from '@/components/ui';
 
@@ -41,7 +41,7 @@ export default async function Home() {
               {c.cfp_closes && <span className="muted small">Closes {formatDate(c.cfp_closes)}</span>}
             </div>
             <h2><Link href={`/cfp/${c.slug}`}>{c.name}</Link></h2>
-            <p className="muted">{[dateRange(c.start_date, c.end_date), c.location].filter(Boolean).join(' · ')}</p>
+            <p className="muted">{[conferenceDates(c), c.location].filter(Boolean).join(' · ')}</p>
             <p className="clamp">{c.description}</p>
             <div className="actions">
               <Link className="btn btn-ghost" href={`/cfp/${c.slug}`}>Details</Link>

@@ -3,6 +3,7 @@
 import ExcelJS from 'exceljs';
 import { query } from './db';
 import { countryName } from './countries';
+import { conferenceDates } from './format';
 import { getConference } from './conferences';
 import { STATUSES } from './proposals';
 
@@ -124,15 +125,19 @@ async function conferences(): Promise<Row[]> {
            c.cfp_opens, c.cfp_closes, c.topics, c.blind_review, c.decisions_published, c.archived,
            COUNT(p.id) AS proposals_total,
            COUNT(*) FILTER (WHERE p.status = 'accepted') AS proposals_accepted,
-           COUNT(*) FILTER (WHERE p.speaker_confirmation = 'confirmed') AS talks_confirmed
+           COUNT(*) FILTER (WHERE p.speaker_confirmation = 'confirmed') AS talks_confirmed,
+           c.date_precision AS _date_precision
     FROM conferences c LEFT JOIN proposals p ON p.conference_id = c.id
     GROUP BY c.id ORDER BY c.start_date NULLS LAST, c.id`);
   const yes = (v: unknown) => (v ? 'yes' : 'no');
-  return rows.map((r) => ({
+  // New columns go after all existing ones, so sheets that read columns by position keep working.
+  return rows.map(({ _date_precision, ...r }) => ({
     ...r,
     topics: String(r.topics).split(/\r?\n/).map((s) => s.trim()).filter(Boolean).join('; '),
     start_date: r.start_date ?? '', end_date: r.end_date ?? '', cfp_opens: r.cfp_opens ?? '', cfp_closes: r.cfp_closes ?? '',
     blind_review: yes(r.blind_review), decisions_published: yes(r.decisions_published), archived: yes(r.archived),
+    date_precision: r.start_date ? _date_precision : '',
+    dates_display: conferenceDates({ start_date: r.start_date, end_date: r.end_date, date_precision: _date_precision }),
   }));
 }
 

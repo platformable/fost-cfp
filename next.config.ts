@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Produces a self-contained .next/standalone server (only the files needed at runtime),
   // which the Dockerfile copies into a small production image.
   output: 'standalone',
+  // Migrations are read from db/migrations at start-up (src/instrumentation.ts); copy them into the
+  // standalone output so a new migration always ships with the server that needs it.
+  outputFileTracingIncludes: { '/*': ['./db/migrations/*.sql'] },
   // Server-only libraries that should be loaded from node_modules rather than bundled.
   serverExternalPackages: ['pg', 'exceljs'],
   poweredByHeader: false,
