@@ -34,7 +34,9 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 | 0 | `support-month-only-conference-dates` | Open a call when only the conference month is known ("June 2027"); add exact dates later | none | Proposed |
 | 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Proposed |
 | 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Not started |
+| 2b | `update-default-session-formats` | New conferences start with Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min), still editable per conference; existing conferences keep their formats | none | Planned for mid-December 2026 |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Not started |
+| 3b | `import-existing-proposals` | Organiser uploads the CFPs already collected for next year's conferences (preview before saving); new people become guests, known emails attach to their account; one `speaker.imported` event per person so n8n sends the "claim your account" email; speakers who never claim stay guests | 1, 2, guest model from 3 | Planned for mid-December 2026 |
 | 4 | `add-staged-decisions` | Per-proposal "speaker informed"; organiser-sent waves (accepted, clear no, waitlist); conference milestones for n8n's daily reminders; replaces the single "publish decisions" switch | 1 | Not started |
 | 5 | `add-mini-conference-committees` | Topics become mini-conferences (e.g. GreenIO) with their own committee; reviewers see only their topics | none | Not started |
 | 6 | `add-speaker-record` | Consent once per person (Formbricks via n8n write-back), sponsor/VIP lead flags and research notes, organiser notes about a speaker | 1 | Not started |
@@ -59,11 +61,24 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 - **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker.
 - **Every OpenSpec design includes a JSON Schema of its data model** (rule in `openspec/config.yaml`).
 
+## Proposed for the mid-December work (to confirm when the changes are proposed)
+
+- **Default formats apply to new conferences only.** The new list is copied into a conference's formats when it is created, so live calls and existing proposals ("Talk (30 min)") are not relabelled.
+- **Claiming an imported account is "set your password"**, using the emailed single-use link from change 2, with a longer expiry (around 30 days) for the bulk email and "Forgot password" as the fallback.
+- **The import file uses the `submissions` export's column names**, so the same layout works in and out.
+- **Imported proposals do not trigger new-proposal automations** (receipt email, newsletter, Pipedrive). They keep their original submitted date and are marked `source = import`.
+- **One person per email**: several rows with the same email become one speaker with several proposals.
+
 ## Open questions, and the change that must answer them
 
 | Question | Change |
 |---|---|
 | How long an unconfirmed guest proposal is kept before it expires | 3 |
+| Store session length separately (25, 50 minutes) for scheduling, or keep it in the label | 2b |
+| Where the existing CFPs live (Typeform, Google Sheet…) and a sample row to map columns | 3b |
+| Whether any imported proposals already have a decision, or all arrive as submitted | 3b |
+| Whether the old form's terms cover moving speakers' details into this app, and if the claim email should link the Formbricks consent form | 3b |
+| If changes 1 and 2 are not ready in December: send claim links from an exported spreadsheet (mail merge or n8n) as a stopgap | 3b |
 | Exact milestone offsets per conference (fixed T-3m/T-2m/T-1m/T-2w or editable) | 4 |
 | Which file storage (OVHcloud or Scaleway Object Storage) and size limits for decks and photos | 7 |
 | Speaker card design and what it shows | 7 |
