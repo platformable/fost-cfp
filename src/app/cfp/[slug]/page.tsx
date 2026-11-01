@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getConference } from '@/lib/conferences';
-import { CFP_LABELS, dateRange, formatDate, safeUrl } from '@/lib/format';
+import { CFP_LABELS, conferenceDates, formatDate, safeUrl } from '@/lib/format';
 import { Badge, Prose } from '@/components/ui';
 
 export default async function ConferencePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -13,7 +13,7 @@ export default async function ConferencePage({ params }: { params: Promise<{ slu
       <Badge status={`cfp-${conf.cfpState}`} label={CFP_LABELS[conf.cfpState]} />
       <h1>{conf.name}</h1>
       <p className="muted">
-        {[dateRange(conf.start_date, conf.end_date), conf.location].filter(Boolean).join(' · ')}
+        {[conferenceDates(conf), conf.location].filter(Boolean).join(' · ')}
         {website && <> · <a href={website} target="_blank" rel="noopener">Website</a></>}
       </p>
       <Prose>{conf.description}</Prose>

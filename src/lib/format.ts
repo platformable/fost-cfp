@@ -29,6 +29,15 @@ export function dateRange(start: string | null, end: string | null): string {
   return `${formatDate(start)} – ${formatDate(end)}`;
 }
 
+// A conference's dates as shown on the site and in exports: "June 2027" when only the month is known.
+export function conferenceDates(conf: { start_date: string | null; end_date: string | null; date_precision: 'day' | 'month' }): string {
+  if (!conf.start_date) return '';
+  if (conf.date_precision === 'month') {
+    return new Date(`${conf.start_date}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  }
+  return dateRange(conf.start_date, conf.end_date);
+}
+
 // Only allow http(s) links in user-supplied URLs (blocks javascript: and friends).
 export function safeUrl(value: string | null | undefined): string {
   const s = String(value ?? '').trim();

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { conferenceStats, listConferences } from '@/lib/conferences';
-import { CFP_LABELS, dateRange, formatDate } from '@/lib/format';
+import { CFP_LABELS, conferenceDates, formatDate } from '@/lib/format';
 import { requireRole } from '@/lib/session';
 import { Badge } from '@/components/ui';
 
@@ -37,7 +37,7 @@ export default async function AdminHome() {
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id} className={c.archived ? 'dim' : ''}>
-                  <td><strong><Link href={`/review/conferences/${c.id}`}>{c.name}</Link></strong><br /><span className="small muted">{dateRange(c.start_date, c.end_date)}</span></td>
+                  <td><strong><Link href={`/review/conferences/${c.id}`}>{c.name}</Link></strong><br /><span className="small muted">{conferenceDates(c)}{c.start_date && c.date_precision === 'month' && ' (month only)'}</span></td>
                   <td><Badge status={`cfp-${c.cfpState}`} label={CFP_LABELS[c.cfpState]} />{c.cfp_closes && <><br /><span className="small muted">closes {formatDate(c.cfp_closes)}</span></>}</td>
                   <td className="num">{c.stats.total}</td>
                   <td className="num">{c.stats.pending}</td>

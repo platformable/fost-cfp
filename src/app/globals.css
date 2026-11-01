@@ -276,3 +276,9 @@ tr.dim { opacity: .55; }
 .notice { margin: 0 0 12px; }
 .form-ok { color: var(--ok-text); font-weight: 600; margin: 0; }
 button[disabled] { opacity: .6; cursor: progress; }
+
+/* Conference dates choice on the organiser form */
+.date-choice { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; }
+.date-choice legend { font-weight: 600; font-size: .8rem; margin-bottom: 8px; padding: 0; }
+.choice-row { display: flex; gap: 8px 24px; flex-wrap: wrap; }
+.date-choice > p { margin: 0; }
