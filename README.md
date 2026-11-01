@@ -59,7 +59,7 @@ Serve it over HTTPS. Session cookies are marked `Secure` when `NODE_ENV=producti
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string (required) |
-| `BASE_URL` | Public address of the app, used in exported links (`proposal_url`, `review_url`) and on the exports page |
+| `BASE_URL` | Public address of the app, used in exported links (`proposal_url`, `review_url`) and on the exports page. On the test server: `https://dev-cfp.platformable.com` |
 | `PORT` | Port for `npm start` / `npm run dev` (default 3000) |
 | `TEST_DATABASE_URL` | Database for `npm test`; **it is wiped on every run** (default `postgres://fost:fost@localhost:5432/fost_cfp_test`) |
 
