@@ -2,7 +2,7 @@
 
 ## 1. Schema
 
-- [ ] 1.1 Add `db/migrations/003_integration_events.sql` with `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys` (indexes on delivery due time and status, event type, key hash) and verify `npm run db:migrate` applies it to a copy of the seeded database and the existing tests still pass
+- [ ] 1.1 Add `db/migrations/004_integration_events.sql` with `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys` (indexes on delivery due time and status, event type, key hash) and verify `npm run db:migrate` applies it to a copy of the seeded database and the existing tests still pass
 
 ## 2. Shared payloads
 

@@ -34,7 +34,7 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 | 0 | `support-month-only-conference-dates` | Open a call when only the conference month is known ("June 2027"); add exact dates later | none | Proposed |
 | 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Proposed |
 | 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Not started |
-| 2b | `update-default-session-formats` | New conferences start with Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min), still editable per conference; existing conferences keep their formats | none | Planned for mid-December 2026 |
+| 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Built, awaiting merge |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Not started |
 | 3b | `import-existing-proposals` | Organiser uploads the CFPs already collected for next year's conferences (preview before saving); new people become guests, known emails attach to their account; one `speaker.imported` event per person so n8n sends the "claim your account" email; speakers who never claim stay guests | 1, 2, guest model from 3 | Planned for mid-December 2026 |
 | 4 | `add-staged-decisions` | Per-proposal "speaker informed"; organiser-sent waves (accepted, clear no, waitlist); conference milestones for n8n's daily reminders; replaces the single "publish decisions" switch | 1 | Not started |
@@ -45,6 +45,7 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 
 ## Decisions agreed
 
+- **Every conference uses the new session formats** (Talk, Panel and Q&A Onstage at 25 minutes, Workshop at 50). Proposals keep the format they were submitted with.
 - **n8n owns all automations.** The app sends no email and has no direct Pipedrive, Soirée or Formbricks integration. It announces events (signed webhooks) and accepts results back (authenticated API).
 - **Pipedrive is Mark's personal tool**, kept up to date one way by n8n. Anything every organiser needs (consent status, lead flags, research notes, organiser notes) lives in the app.
 - **LinkedIn connection to-dos are Mark's only** and stay out of the app (they belong in Pipedrive). LinkedIn connections cannot be automated.
@@ -63,7 +64,6 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 
 ## Proposed for the mid-December work (to confirm when the changes are proposed)
 
-- **Default formats apply to new conferences only.** The new list is copied into a conference's formats when it is created, so live calls and existing proposals ("Talk (30 min)") are not relabelled.
 - **Claiming an imported account is "set your password"**, using the emailed single-use link from change 2, with a longer expiry (around 30 days) for the bulk email and "Forgot password" as the fallback.
 - **The import file uses the `submissions` export's column names**, so the same layout works in and out.
 - **Imported proposals do not trigger new-proposal automations** (receipt email, newsletter, Pipedrive). They keep their original submitted date and are marked `source = import`.
@@ -74,7 +74,6 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 | Question | Change |
 |---|---|
 | How long an unconfirmed guest proposal is kept before it expires | 3 |
-| Store session length separately (25, 50 minutes) for scheduling, or keep it in the label | 2b |
 | Where the existing CFPs live (Typeform, Google Sheet…) and a sample row to map columns | 3b |
 | Whether any imported proposals already have a decision, or all arrive as submitted | 3b |
 | Whether the old form's terms cover moving speakers' details into this app, and if the claim email should link the Formbricks consent form | 3b |

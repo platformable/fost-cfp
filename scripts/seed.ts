@@ -69,11 +69,11 @@ async function main() {
     return row!.id;
   }
 
-  const p1 = await proposal(apiConf, ada, 'Designing APIs for engines that do not exist yet', 'Talk (30 min)', 'API Design', 'How to design interfaces that outlive their first implementation.');
-  const p2 = await proposal(apiConf, grace, 'Compilers, contracts and the OpenAPI spec', 'Talk (30 min)', 'Platform Engineering', 'Treat your API description as a compiler input and generate everything else.');
+  const p1 = await proposal(apiConf, ada, 'Designing APIs for engines that do not exist yet', 'Talk (25 min)', 'API Design', 'How to design interfaces that outlive their first implementation.');
+  const p2 = await proposal(apiConf, grace, 'Compilers, contracts and the OpenAPI spec', 'Talk (25 min)', 'Platform Engineering', 'Treat your API description as a compiler input and generate everything else.');
   const p3 = await proposal(apiConf, linus, 'Saying no to API changes', 'Lightning talk (10 min)', 'API Design', 'A short guide to not breaking userspace.');
   await proposal(apiConf, ada, 'Hands-on: agents calling your API safely', 'Workshop (90 min)', 'AI & Agents', 'Build a tool-using agent against a sandboxed API.');
-  await proposal(osConf, linus, 'Maintainer burnout and how to avoid it', 'Talk (30 min)', 'Maintainership', 'Lessons from three decades of reviewing patches.');
+  await proposal(osConf, linus, 'Maintainer burnout and how to avoid it', 'Talk (25 min)', 'Maintainership', 'Lessons from three decades of reviewing patches.');
 
   const review = (p: number, r: number, score: number, rec: string, comments: string) =>
     query('INSERT INTO reviews (proposal_id, reviewer_id, score, recommendation, comments) VALUES ($1, $2, $3, $4, $5)', [p, r, score, rec, comments]);

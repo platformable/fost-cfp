@@ -336,7 +336,7 @@ New tables are `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys
 
 ## Migration Plan
 
-1. Migration `003_integration_events.sql` adds `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys`. It only adds tables, so it is safe to apply to a live database.
+1. Migration `004_integration_events.sql` adds `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys`. It only adds tables, so it is safe to apply to a live database.
 2. Deploy the web app, then start the worker. Until an organiser adds an endpoint, events are recorded with no deliveries.
 3. Rollback: stop the worker and deploy the previous web version. The extra tables are ignored by older code and can be dropped later.
 
