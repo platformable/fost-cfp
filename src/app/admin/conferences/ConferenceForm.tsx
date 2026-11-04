@@ -5,6 +5,7 @@ import type { ConferenceFormState } from '@/actions/admin';
 import { SubmitButton } from '@/components/SubmitButton';
 import { Errors } from '@/components/ui';
 import { ConferenceDates } from './ConferenceDates';
+import { DEFAULT_FORMATS } from '@/lib/formats';
 
 type Values = Record<string, unknown>;
 
@@ -34,7 +35,7 @@ export function ConferenceForm({ action, initial, isNew }: {
       <div className="field-row">
         <label>Topics <span className="opt">one per line; speakers pick one. Leave blank for none</span><textarea name="topics" rows={5} defaultValue={s('topics')} /></label>
         <label>Session formats <span className="opt">one per line; blank = defaults</span>
-          <textarea name="formats" rows={5} defaultValue={s('formats')} placeholder={'Talk (30 min)\nLightning talk (10 min)\nWorkshop (90 min)\nPanel (45 min)'} /></label>
+          <textarea name="formats" rows={5} defaultValue={s('formats')} placeholder={DEFAULT_FORMATS.join('\n')} /></label>
       </div>
       <label className="check"><input type="checkbox" name="blind_review" value="1" defaultChecked={!!v.blind_review} /> Anonymous review (hide speaker identity from reviewers)</label>
       <SubmitButton>{isNew ? 'Create conference' : 'Save changes'}</SubmitButton>

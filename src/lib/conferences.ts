@@ -1,7 +1,9 @@
 import { one, query } from './db';
 import type { User } from './auth';
 
-export const DEFAULT_FORMATS = ['Talk (30 min)', 'Lightning talk (10 min)', 'Workshop (90 min)', 'Panel (45 min)'];
+import { DEFAULT_FORMATS } from './formats';
+
+export { DEFAULT_FORMATS };
 export const LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'All levels'];
 
 export type DatePrecision = 'day' | 'month';

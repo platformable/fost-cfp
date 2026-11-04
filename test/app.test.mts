@@ -109,14 +109,14 @@ describe('proposal lifecycle', () => {
   test('speakers submit with a required topic; edits bump the version', async () => {
     let r = await submit(adaId, [conf], { title: '', abstract: '', [`format_${conf.id}`]: 'nope' });
     assert.deepEqual(r.errors, ['Title is required.', 'Abstract is required.', 'Please choose a session format.', 'Please choose a topic.']);
-    r = await submit(adaId, [conf], { title: 'Designing APIs', abstract: '=HYPERLINK("evil")', level: 'Beginner', [`format_${conf.id}`]: 'Talk (30 min)', [`topic_${conf.id}`]: 'Design' });
+    r = await submit(adaId, [conf], { title: 'Designing APIs', abstract: '=HYPERLINK("evil")', level: 'Beginner', [`format_${conf.id}`]: 'Talk (25 min)', [`topic_${conf.id}`]: 'Design' });
     assert.deepEqual(r.errors, []);
     pid = r.ids[0];
     let p = (await props.getProposal(pid))!;
     assert.equal(p.topic, 'Design');
     assert.equal(p.status, 'submitted');
 
-    const changed = await props.updateBySpeaker(p, adaId, { title: 'Designing durable APIs', abstract: p.abstract, level: 'Beginner', co_speakers: '', notes: '', format: 'Talk (30 min)', topic: 'Security' });
+    const changed = await props.updateBySpeaker(p, adaId, { title: 'Designing durable APIs', abstract: p.abstract, level: 'Beginner', co_speakers: '', notes: '', format: 'Talk (25 min)', topic: 'Security' });
     assert.deepEqual(changed, ['title', 'topic']);
     p = (await props.getProposal(pid))!;
     assert.equal(p.version, 2);
@@ -126,7 +126,7 @@ describe('proposal lifecycle', () => {
   test('one proposal can go to several conferences, all or nothing', async () => {
     const a = await newConference({ name: 'Multi A', topics: 'APIs\nAI' });
     const b = await newConference({ name: 'Multi B', formats: 'Keynote\nTalk (20 min)' });
-    const data = { title: 'One talk, two events', abstract: 'Same abstract everywhere.', level: 'Advanced', [`format_${a.id}`]: 'Talk (30 min)', [`topic_${a.id}`]: 'AI', [`format_${b.id}`]: 'Talk (30 min)' };
+    const data = { title: 'One talk, two events', abstract: 'Same abstract everywhere.', level: 'Advanced', [`format_${a.id}`]: 'Talk (25 min)', [`topic_${a.id}`]: 'AI', [`format_${b.id}`]: 'Talk (25 min)' };
     let r = await submit(adaId, [a, b], data);
     assert.deepEqual(r.errors, ['Please choose a session format for Multi B.']);
     assert.equal((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM proposals WHERE title = 'One talk, two events'`))!.n, 0);
@@ -134,7 +134,7 @@ describe('proposal lifecycle', () => {
     assert.equal(r.ids.length, 2);
     const rows = await query(`SELECT conference_id, format, topic, level FROM proposals WHERE title = 'One talk, two events' ORDER BY conference_id`);
     assert.deepEqual(rows, [
-      { conference_id: a.id, format: 'Talk (30 min)', topic: 'AI', level: 'Advanced' },
+      { conference_id: a.id, format: 'Talk (25 min)', topic: 'AI', level: 'Advanced' },
       { conference_id: b.id, format: 'Keynote', topic: '', level: 'Advanced' },
     ]);
   });
@@ -312,7 +312,7 @@ describe('confirming exact dates sets the edit deadline', () => {
   test('a proposal shows the countdown once exact dates are saved', async () => {
     const speaker = (await users.register({ first_name: 'Hedy', last_name: 'Lamarr', email: 'hedy@example.com', organization: '' }, 'password123')).user!;
     const conf = await newConference({ name: 'Month then exact', date_precision: 'month', start_month: '12', start_year: '2099' });
-    const r = await submit(speaker.id, [conf], { title: 'Frequency hopping', abstract: 'Spread spectrum.', [`format_${conf.id}`]: 'Talk (30 min)' });
+    const r = await submit(speaker.id, [conf], { title: 'Frequency hopping', abstract: 'Spread spectrum.', [`format_${conf.id}`]: 'Talk (25 min)' });
     const p = (await props.getProposal(r.ids[0]))!;
     assert.equal(props.editWindow(p, conf).label, 'Edit deadline set once dates are confirmed');
     const { values } = confs.readConferenceForm(form({ name: 'Month then exact', date_precision: 'day', start_date: '2099-12-10' }));
