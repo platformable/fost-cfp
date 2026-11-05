@@ -10,7 +10,8 @@ import { STATUSES } from './proposals';
 export interface ExportFilters { conferenceId?: number; slug?: string; status?: string; updatedSince?: string }
 type Row = Record<string, unknown>;
 
-export const baseUrl = () => (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+export { baseUrl } from './links';
+import { baseUrl } from './links';
 
 // Where to get a speaker's headshot: their own photo URL if given, otherwise their LinkedIn profile photo.
 const headshotSource = (photoUrl: unknown, linkedinUrl: unknown) => (photoUrl ? 'photo_url' : linkedinUrl ? 'linkedin' : 'missing');

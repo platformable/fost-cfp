@@ -54,6 +54,23 @@ node .next/standalone/server.js
 
 Serve it over HTTPS. Session cookies are marked `Secure` when `NODE_ENV=production`.
 
+### The webhook worker (second process)
+
+Webhook events are sent by a separate process, not the web server. Run it next to the web server, with the same `DATABASE_URL`, from a full checkout of this repository (`npm ci` installs what it needs; the `.next/standalone` folder alone is not enough):
+
+```bash
+npm run worker
+```
+
+It wakes as soon as an event is recorded, retries failed deliveries for about two days, and deletes event details older than 30 days. If it is not running, nothing is lost: events wait in the database and are sent once it starts. **Organise → Integrations** shows when it last checked in and warns if that was more than five minutes ago. It is safe to run more than one copy.
+
+On OVHcloud or Scaleway, run it the same way you run the web server:
+
+- **Docker Compose:** add a second service to the deployment's `docker-compose.yml` that uses the same image and environment as the web service, with `command: npm run worker` and `restart: unless-stopped`. The image must contain the repository source and `node_modules`, not only the standalone build.
+- **systemd on a VPS:** a second unit with `WorkingDirectory=/path/to/fost-cfp`, `EnvironmentFile=/path/to/.env`, `ExecStart=/usr/bin/npm run worker` and `Restart=always`.
+
+In production the worker refuses to send to private, loopback and link-local addresses (so a webhook URL cannot be used to reach internal services). Set `ALLOW_PRIVATE_WEBHOOKS=1` only if n8n runs on the same private network and you trust everyone who can sign in as an organiser.
+
 ### Configuration (environment variables)
 
 | Variable | Purpose |
@@ -62,6 +79,7 @@ Serve it over HTTPS. Session cookies are marked `Secure` when `NODE_ENV=producti
 | `BASE_URL` | Public address of the app, used in exported links (`proposal_url`, `review_url`) and on the exports page. On the test server: `https://dev-cfp.platformable.com` |
 | `PORT` | Port for `npm start` / `npm run dev` (default 3000) |
 | `TEST_DATABASE_URL` | Database for `npm test`; **it is wiped on every run** (default `postgres://fost:fost@localhost:5432/fost_cfp_test`) |
+| `ALLOW_PRIVATE_WEBHOOKS` | Set to `1` to let the worker send webhooks to private network addresses in production (off by default) |
 
 ## Proposal lifecycle
 
@@ -102,6 +120,85 @@ Signed-in admins download from `/admin/export/<dataset>.<csv|xlsx|json>`. For au
 
 The token is shown on the exports page and can be regenerated there. Treat it like a password. In CSV output, cells that start with `=`, `+`, `-` or `@` are prefixed with `'` so spreadsheets don't run user-entered text as a formula.
 
+## Integrations: webhooks and the API (n8n)
+
+Go to **Organise → Integrations** (organisers only). Two things live there:
+
+- **Webhook endpoints:** the app POSTs a signed JSON event to each endpoint the moment something happens. Choose which events each endpoint gets, pause it (events are kept and sent when you resume), send a test event, and see every delivery with its response.
+- **API keys:** let n8n read data back from `/api/v1/`. A key is shown once when it is created.
+
+### Events
+
+| Event | When |
+| --- | --- |
+| `speaker.registered` | A speaker creates an account (not the first, organiser, account) |
+| `speaker.profile_updated` | A speaker saves a changed profile; `data.changed_fields` lists what changed |
+| `proposal.submitted` | A proposal is submitted; one event per conference it was sent to |
+| `proposal.updated` | A speaker saves a changed proposal; `data.changed_fields` lists what changed |
+| `proposal.withdrawn` | A speaker withdraws a proposal |
+| `proposal.speaker_confirmed` / `proposal.speaker_declined` | A speaker answers an accepted proposal |
+| `test.ping` | "Send test event" on an endpoint's page |
+
+Every delivery body looks like this:
+
+```json
+{
+  "id": "5cf10300-b2a0-4e5e-835e-f7036cc940da",
+  "type": "proposal.submitted",
+  "version": 1,
+  "occurred_at": "2027-01-15T10:30:00Z",
+  "data": { "proposal": { "id": 42, "title": "…", "status": "under review", "speaker": { "…": "…" }, "conference": { "…": "…" } } }
+}
+```
+
+`data.proposal` (or `data.speaker` for speaker events) contains everything n8n usually needs: the talk, the speaker's name, email, job title, organisation, bio, LinkedIn URL, country and headshot, and the conference, including `date_precision` (`day`, or `month` while only the month is known). The status is what the speaker sees, so an unpublished decision shows as `under review`; internal notes, reviews and scores are never sent.
+
+Each delivery carries `X-FOST-Event-Id`, `X-FOST-Event-Type`, `X-FOST-Timestamp` (Unix seconds) and `X-FOST-Signature`: `sha256=` followed by the hex HMAC-SHA256 of `<timestamp>.<raw body>`, keyed with the endpoint's signing secret. Only a 2xx answer within 10 seconds counts as delivered; anything else is retried after about 1 min, 5 min, 15 min, 1 h, 3 h, 6 h, 12 h and 24 h, then marked failed. A delivery can arrive more than once, so de-duplicate by `id`.
+
+### Receiving events in n8n
+
+1. Add a **Webhook** node: method `POST`, and under **Options** turn on **Raw Body** (the signature is checked against the exact bytes sent). Paste its **Production URL** into a new endpoint under Organise → Integrations, and keep the signing secret it shows you.
+2. Add a **Code** node after it (mode: *Run Once for All Items*) to check the signature. The Code node needs Node's `crypto` module: set `NODE_FUNCTION_ALLOW_BUILTIN=crypto` in n8n's environment. Store the secret as an n8n variable or environment variable rather than in the code if you can.
+
+   ```js
+   // Checks that a webhook really came from FOST Call for Speakers, then outputs the event.
+   const crypto = require('crypto');
+   const secret = 'whsec_paste_your_signing_secret_here';
+
+   const headers = $input.first().json.headers;
+   const raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');
+   const timestamp = headers['x-fost-timestamp'];
+   const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(`${timestamp}.${raw}`).digest('hex');
+   const given = String(headers['x-fost-signature'] || '');
+   if (given.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
+     throw new Error('Signature does not match: this request did not come from FOST Call for Speakers.');
+   }
+   if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+     throw new Error('Webhook is more than five minutes old; ignoring it.');
+   }
+   return [{ json: JSON.parse(raw) }];
+   ```
+
+3. Add a **Remove Duplicates** node set to *Remove items processed in previous executions*, comparing the field `id`, so a delivery that arrives twice is only handled once.
+4. Branch on `type` with a **Switch** node (for example `proposal.submitted` → receipt email, Soirée newsletter, Pipedrive).
+
+Use **Send test event** on the endpoint's page to try the workflow with a `test.ping`.
+
+### Reading data with an API key
+
+Create a key under Organise → Integrations and send it as `Authorization: Bearer <key>` (in n8n: an HTTP Request node with *Header Auth*). Read-only keys can only use `GET`. Each key may make 600 requests a minute.
+
+| Request | Returns |
+| --- | --- |
+| `GET /api/v1/conferences` | Every conference |
+| `GET /api/v1/conferences/{id or slug}` | One conference |
+| `GET /api/v1/conferences/{id or slug}/committee` | Program committee names and emails |
+| `GET /api/v1/proposals?conference=&status=&updated_since=` | Proposals, oldest change first; `status` is what the speaker sees (`under review`, `accepted`, `waitlisted`, `rejected`, `withdrawn`) |
+| `GET /api/v1/proposals/{id}` | One proposal, same shape as in events |
+| `GET /api/v1/speakers/{id}` | One speaker profile, same shape as in events |
+
+Lists return `{ "items": [...], "next_cursor": "..." }` with up to 100 items (`?limit=` for fewer); pass `?cursor=<next_cursor>` for the next page until it is `null`. Errors look like `{ "error": { "code": "not_found", "message": "..." } }` with a matching HTTP status (401 no or bad key, 403 read-only key, 404, 405, 429 with `Retry-After`). API keys do not open the spreadsheet export links, and the export token does not work as an API key.
+
 ## Planning changes with OpenSpec
 
 This repo uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven changes: agree what to build in writing first, then implement it. The CLI is pinned as a dev dependency (`npx openspec …`, version 1.14.3; it needs Node.js 22.12 or newer).
@@ -129,10 +226,15 @@ src/lib/              Business logic, independent of Next.js
   proposals.ts        submission, edit window, decisions, reviews
   users.ts            registration, profiles, roles
   export.ts           spreadsheet datasets and CSV/XLSX writers
+  payloads.ts         speaker, proposal and conference objects for events and /api/v1/
+  events.ts           recording events with each change (outbox)
+  webhooks.ts         endpoints, signing, delivery, retries, delivery log
+  worker.ts           the delivery loop run by npm run worker
+  api-keys.ts, api.ts, api-v1.ts   API keys, rate limit, /api/v1/ handlers
   session.ts          Next.js glue: current user, guards, flash messages
 src/actions/          Server actions (every change goes through these, with role checks)
 src/app/              Pages and routes (App Router)
 src/components/       Shared UI, including the multi-conference proposal form
-scripts/              db:migrate and db:seed
+scripts/              db:migrate, db:seed and worker
 test/                 Integration tests
 ```

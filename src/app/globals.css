@@ -238,6 +238,10 @@ tr.dim { opacity: .55; }
 .badge-waitlisted, .badge-cfp-upcoming, .badge-rec-maybe { background: var(--info-bg); color: var(--info-text); }
 .badge-rejected, .badge-rec-reject { background: var(--bad-bg); color: var(--bad-text); }
 .badge-withdrawn, .badge-cfp-closed, .badge-cfp-archived { background: var(--neutral-bg); color: var(--neutral-text); }
+.badge-delivered, .badge-active { background: var(--ok-bg); color: var(--ok-text); }
+.badge-pending { background: var(--warn-bg); color: var(--warn-text); }
+.badge-failed, .badge-revoked { background: var(--bad-bg); color: var(--bad-text); }
+.badge-paused { background: var(--neutral-bg); color: var(--neutral-text); }
 
 .edit-window { font-size: .85rem; font-weight: 600; white-space: nowrap; }
 .edit-open { color: var(--ok-text); }

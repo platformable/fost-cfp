@@ -32,7 +32,7 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 | # | Change | What it delivers | Needs | Status |
 |---|---|---|---|---|
 | 0 | `support-month-only-conference-dates` | Open a call when only the conference month is known ("June 2027"); add exact dates later | none | Shipped and archived (4 Nov 2026) |
-| 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Proposed |
+| 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Built, awaiting merge |
 | 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Not started |
 | 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Built, awaiting merge |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Not started |
