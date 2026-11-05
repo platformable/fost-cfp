@@ -2,6 +2,7 @@ import type pg from 'pg';
 import { one, query, transaction } from './db';
 import type { User } from './auth';
 import { LEVELS, todayUtc, type Conference } from './conferences';
+import { recordProposalEvent } from './events';
 
 export const STATUSES = ['submitted', 'accepted', 'waitlisted', 'rejected', 'withdrawn'] as const;
 export const DECISIONS = ['submitted', 'accepted', 'waitlisted', 'rejected'] as const;
@@ -170,6 +171,8 @@ export async function submitProposals(speakerId: number, common: CommonValues, p
       await logHistory(db, inserted!.id, speakerId, 'submitted');
       ids.push(inserted!.id);
     }
+    // One event per conference, recorded after every row exists so each payload is complete.
+    for (const id of ids) await recordProposalEvent(db, 'proposal.submitted', id);
     return ids;
   });
 }
@@ -182,6 +185,7 @@ export async function updateBySpeaker(p: Proposal, userId: number, values: Commo
                  version = version + 1, updated_at = now() WHERE id = $${PROPOSAL_FIELDS.length + 1}`,
     [...PROPOSAL_FIELDS.map((f) => values[f]), p.id], db);
     await logHistory(db, p.id, userId, 'edited', `Changed: ${changed.join(', ')}`);
+    await recordProposalEvent(db, 'proposal.updated', p.id, { changed_fields: changed });
   });
   return changed;
 }
@@ -191,6 +195,7 @@ export async function withdraw(p: Proposal, userId: number): Promise<void> {
   await transaction(async (db) => {
     await query(`UPDATE proposals SET status = 'withdrawn', updated_at = now() WHERE id = $1`, [p.id], db);
     await logHistory(db, p.id, userId, 'withdrawn', `Previous status: ${p.status}`);
+    await recordProposalEvent(db, 'proposal.withdrawn', p.id);
   });
 }
 
@@ -198,6 +203,7 @@ export async function confirmSlot(p: Proposal, userId: number, answer: 'confirme
   await transaction(async (db) => {
     await query('UPDATE proposals SET speaker_confirmation = $1, confirmed_at = now(), updated_at = now() WHERE id = $2', [answer, p.id], db);
     await logHistory(db, p.id, userId, answer);
+    await recordProposalEvent(db, answer === 'confirmed' ? 'proposal.speaker_confirmed' : 'proposal.speaker_declined', p.id);
   });
 }
 

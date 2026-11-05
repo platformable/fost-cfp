@@ -18,6 +18,7 @@ export default async function AdminHome() {
         <div className="actions">
           <Link className="btn btn-ghost" href="/admin/users">People</Link>
           <Link className="btn btn-ghost" href="/admin/exports">Spreadsheet exports</Link>
+          <Link className="btn btn-ghost" href="/admin/integrations">Integrations</Link>
           <Link className="btn" href="/admin/conferences/new">New conference</Link>
         </div>
       </div>

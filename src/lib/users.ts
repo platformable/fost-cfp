@@ -1,4 +1,5 @@
-import { one, query } from './db';
+import { one, query, transaction } from './db';
+import { recordSpeakerEvent } from './events';
 import { findUserByEmail, hashPassword, verifyPassword, type Role, type User } from './auth';
 import { isCountryCode } from './countries';
 import { safeUrl } from './format';
@@ -14,11 +15,16 @@ export async function register(values: RegisterValues, password: string): Promis
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return { error: 'Please enter a valid email address.' };
   if (password.length < 8) return { error: 'Password must be at least 8 characters.' };
   if (await findUserByEmail(values.email)) return { error: 'An account with that email already exists. Try signing in.' };
-  const user = await one<User>(`
-    INSERT INTO users (email, password_hash, first_name, last_name, organization, role)
-    VALUES ($1, $2, $3, $4, $5, CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'speaker' ELSE 'admin' END)
-    RETURNING *`, [values.email.toLowerCase(), hashPassword(password), values.first_name, values.last_name, values.organization]);
-  return { user: user! };
+  const user = await transaction(async (db) => {
+    const row = await one<User>(`
+      INSERT INTO users (email, password_hash, first_name, last_name, organization, role)
+      VALUES ($1, $2, $3, $4, $5, CASE WHEN EXISTS (SELECT 1 FROM users) THEN 'speaker' ELSE 'admin' END)
+      RETURNING *`, [values.email.toLowerCase(), hashPassword(password), values.first_name, values.last_name, values.organization], db);
+    // The first account is the organiser, not a speaker, so it does not announce a new speaker.
+    if (row!.role === 'speaker') await recordSpeakerEvent(db, 'speaker.registered', row!.id);
+    return row!;
+  });
+  return { user };
 }
 
 // Returns an https linkedin.com URL, or null if the value isn't a LinkedIn address.
@@ -48,11 +54,19 @@ export function readProfile(form: FormData): { values: ProfileValues; error: str
   return { values, error };
 }
 
-export async function saveProfile(userId: number, values: ProfileValues): Promise<void> {
-  await query(`UPDATE users SET ${PROFILE_FIELDS.map((f, i) => `${f} = $${i + 1}`).join(', ')}, updated_at = now()
-               WHERE id = $${PROFILE_FIELDS.length + 1}`, [...PROFILE_FIELDS.map((f) => values[f]), userId]);
-  // Touch the speaker's proposals so "updated since" exports pick up the new speaker details.
-  await query('UPDATE proposals SET updated_at = now() WHERE speaker_id = $1', [userId]);
+// Returns the fields that changed; saving an unchanged profile writes nothing and records no event.
+export async function saveProfile(userId: number, values: ProfileValues): Promise<string[]> {
+  return transaction(async (db) => {
+    const before = await one<ProfileValues>(`SELECT ${PROFILE_FIELDS.join(', ')} FROM users WHERE id = $1 FOR UPDATE`, [userId], db);
+    const changed = PROFILE_FIELDS.filter((f) => String(values[f] ?? '') !== String(before?.[f] ?? ''));
+    if (!changed.length) return [];
+    await query(`UPDATE users SET ${PROFILE_FIELDS.map((f, i) => `${f} = $${i + 1}`).join(', ')}, updated_at = now()
+                 WHERE id = $${PROFILE_FIELDS.length + 1}`, [...PROFILE_FIELDS.map((f) => values[f]), userId], db);
+    // Touch the speaker's proposals so "updated since" exports pick up the new speaker details.
+    await query('UPDATE proposals SET updated_at = now() WHERE speaker_id = $1', [userId], db);
+    await recordSpeakerEvent(db, 'speaker.profile_updated', userId, { changed_fields: changed });
+    return changed;
+  });
 }
 
 export async function changePassword(user: User, current: string, next: string): Promise<string | null> {

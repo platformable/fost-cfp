@@ -9,7 +9,7 @@ pg.types.setTypeParser(1114, (v: string) => new Date(`${v}Z`).toISOString().repl
 pg.types.setTypeParser(20, (v: string) => Number(v));
 pg.types.setTypeParser(1700, (v: string) => Number(v));
 
-type Queryable = Pick<pg.Pool, 'query'> | pg.PoolClient;
+export type Queryable = Pick<pg.Pool, 'query'> | pg.PoolClient;
 
 const globalForPool = globalThis as unknown as { fostPool?: pg.Pool };
 

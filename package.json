@@ -10,7 +10,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.mts"
+    "test": "tsx --test --test-concurrency=1 test/*.test.mts",
+    "worker": "tsx scripts/worker.ts"
   },
   "engines": {
     "node": ">=20.9"
@@ -21,7 +22,8 @@
     "next": "^15.5.27",
     "pg": "^8.16.3",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "tsx": "^4.20.6"
   },
   "devDependencies": {
     "@fission-ai/openspec": "^1.14.3",
@@ -29,7 +31,6 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.11",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
   "overrides": {

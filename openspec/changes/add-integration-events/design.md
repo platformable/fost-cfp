@@ -32,10 +32,12 @@ Creating deliveries up front, even for paused endpoints, means pausing an endpoi
 `npm run worker` runs `scripts/worker.ts`, a loop that claims due deliveries with `SELECT … FOR UPDATE SKIP LOCKED`, sends them, and records the outcome. It wakes on PostgreSQL `LISTEN/NOTIFY` when a new event is recorded, and otherwise polls every few seconds as a fallback.
 - *Why:* the web server stays fast and stateless, several workers can run safely, and it suits a VPS or container host.
 - *Alternative:* a timer inside the Next.js server via `instrumentation.ts`. Rejected: every web instance and every dev hot reload would start its own loop, and work would stop whenever the web server restarts.
-- `docker-compose.yml` gains a `worker` service; the README documents running both processes (for example, with systemd or two containers).
+- The README documents running both processes (a second Docker Compose service or a systemd unit). The deployment's `docker-compose.yml` is kept outside this repository, so the worker service is described in the README rather than added to a file here.
+- `tsx` moves from devDependencies to dependencies, because `npm run worker` (like `db:migrate`) runs TypeScript directly on the server.
+- Each claim is a short lease: the worker moves `next_attempt_at` two minutes ahead in the same statement that claims the row, sends outside any transaction, then records the outcome. A worker that crashes mid-send leaves the delivery to be retried when the lease runs out.
 
 ### 4. Retry schedule
-Attempts happen at about 0, 1 min, 5 min, 15 min, 1 h, 3 h, 6 h, 12 h and 24 h after the first try, roughly 46 hours in total, which meets "at least 24 hours". Each attempt has a 10-second timeout and does not follow redirects. 2xx counts as success; anything else, including timeouts and 3xx, is a failure. A manual resend creates a fresh attempt for the same event without changing its `id`.
+After each failed attempt the next one waits about 1 min, 5 min, 15 min, 1 h, 3 h, 6 h, 12 h and then 24 h: nine attempts spread over roughly 46 hours, which meets "at least 24 hours". After the ninth failure the delivery is marked failed. Each attempt has a 10-second timeout and does not follow redirects. 2xx counts as success; anything else, including timeouts and 3xx, is a failure. A manual resend creates a fresh attempt for the same event without changing its `id`.
 
 ### 5. Signing and secret storage
 Signature: `sha256=` + hex HMAC-SHA256 of `<unix seconds>.<raw body>`, sent with the headers named in the spec. Including the timestamp lets receivers reject old replays.
@@ -44,7 +46,7 @@ Signature: `sha256=` + hex HMAC-SHA256 of `<unix seconds>.<raw body>`, sent with
 - n8n checks signatures with a short Code node; the README includes a ready-made snippet. Endpoints can also add a custom header, such as n8n's Header Auth, as a simpler alternative.
 
 ### 6. Protecting the server from outbound abuse (SSRF)
-Webhook URLs are entered by organisers, so the server could be pointed at internal addresses (for example, a cloud metadata service). In production the worker resolves the hostname and refuses private, loopback and link-local addresses. In development, `localhost` is allowed so a local n8n can be used.
+Webhook URLs are entered by organisers, so the server could be pointed at internal addresses (for example, a cloud metadata service). In production the worker resolves the hostname and refuses private, loopback and link-local addresses. The check runs inside the connection's own DNS lookup, so a hostname cannot pass the check and then connect somewhere else. Outside production the guard is off, so a local n8n on `localhost` can be used; `ALLOW_PRIVATE_WEBHOOKS=1` turns it off in production for an n8n on the same private network.
 
 ### 7. API keys
 Keys look like `fost_live_<prefix>_<secret>`. Only a SHA-256 hash is stored; the prefix is stored in plain text so organisers can tell keys apart. Revocation sets `revoked_at`. Last-used time is updated at most once a minute per key, to avoid a database write on every request.
@@ -55,7 +57,7 @@ A fixed one-minute window per key, counted in the web process.
 - *Trade-off:* with several web processes, each counts separately. If the app scales out, the counter can move to PostgreSQL without changing the spec.
 
 ### 9. One payload builder
-`src/lib/payloads.ts` builds the speaker, proposal and conference objects used in event `data` and API responses. It uses `publicStatus()` for the status, so the "no organiser-only information" rule lives in one place and is tested once. Conference dates come with `date_precision: "day"`. When a conference has no dates, the dates are `null` and the precision is `null`. Month-only precision arrives with the change that adds month-only dates.
+`src/lib/payloads.ts` builds the speaker, proposal and conference objects used in event `data` and API responses. It applies the same rule as `publicStatus()` (and the same rule in SQL for the API's `status` filter), so the "no organiser-only information" rule lives in one place and is tested once; `speaker_confirmation` is only shown while the speaker can see the acceptance. Conference dates come with `date_precision`: `day` for exact dates, or `month` (start on the 1st, no end date) now that month-only dates have shipped. When a conference has no dates, the dates and the precision are `null`.
 
 ### 10. Data retention
 A daily step in the worker deletes payloads from the delivery log and event bodies older than 30 days once no delivery for them is still pending. It keeps a slim row (type, time, status) so the log still shows history.
@@ -237,7 +239,7 @@ New tables are `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys
         "location": { "type": "string" },
         "start_date": { "type": ["string", "null"], "format": "date" },
         "end_date": { "type": ["string", "null"], "format": "date" },
-        "date_precision": { "type": ["string", "null"], "enum": ["day", "month", null], "description": "'month' arrives with the month-only dates change; null when no dates are set." },
+        "date_precision": { "type": ["string", "null"], "enum": ["day", "month", null], "description": "'day' for exact dates, 'month' when only the month is known (start_date is the 1st, end_date is null); null when no dates are set." },
         "cfp_opens": { "type": ["string", "null"], "format": "date" },
         "cfp_closes": { "type": ["string", "null"], "format": "date" },
         "url": { "type": "string", "format": "uri", "description": "Public call-for-proposals page." }
@@ -312,7 +314,7 @@ New tables are `events`, `webhook_endpoints`, `webhook_deliveries` and `api_keys
         "error": {
           "type": "object",
           "properties": {
-            "code": { "type": "string", "enum": ["unauthorized", "forbidden", "not_found", "rate_limited", "invalid_request"] },
+            "code": { "type": "string", "enum": ["unauthorized", "forbidden", "not_found", "method_not_allowed", "rate_limited", "invalid_request"], "description": "CHANGED during build: method_not_allowed (405) added for write methods sent with a read-write key to read-only endpoints" },
             "message": { "type": "string" }
           },
           "required": ["code", "message"],
