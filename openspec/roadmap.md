@@ -33,9 +33,9 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 |---|---|---|---|---|
 | 0 | `support-month-only-conference-dates` | Open a call when only the conference month is known ("June 2027"); add exact dates later | none | Shipped and archived (4 Nov 2026) |
 | 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Shipped and archived (6 Nov 2026) |
-| 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Not started |
+| 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Proposed (6 Nov 2026) |
 | 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Shipped and archived (6 Nov 2026) |
-| 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Not started |
+| 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Proposed (6 Nov 2026) |
 | 3b | `import-existing-proposals` | Organiser uploads the CFPs already collected for next year's conferences (preview before saving); new people become guests, known emails attach to their account; one `speaker.imported` event per person so n8n sends the "claim your account" email; speakers who never claim stay guests | 1, 2, guest model from 3 | Planned for mid-December 2026 |
 | 4 | `add-staged-decisions` | Per-proposal "speaker informed"; organiser-sent waves (accepted, clear no, waitlist); conference milestones for n8n's daily reminders; replaces the single "publish decisions" switch | 1 | Not started |
 | 5 | `add-mini-conference-committees` | Topics become mini-conferences (e.g. GreenIO) with their own committee; reviewers see only their topics | none | Not started |
