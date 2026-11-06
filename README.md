@@ -157,8 +157,11 @@ Each delivery carries `X-FOST-Event-Id`, `X-FOST-Event-Type`, `X-FOST-Timestamp`
 
 ### Receiving events in n8n
 
-1. Add a **Webhook** node: method `POST`, and under **Options** turn on **Raw Body** (the signature is checked against the exact bytes sent). Paste its **Production URL** into a new endpoint under Organise → Integrations, and keep the signing secret it shows you.
-2. Add a **Code** node after it (mode: *Run Once for All Items*) to check the signature. The Code node needs Node's `crypto` module: set `NODE_FUNCTION_ALLOW_BUILTIN=crypto` in n8n's environment. Store the secret as an n8n variable or environment variable rather than in the code if you can.
+1. Add a **Webhook** node: method `POST`, and under **Options** turn on **Raw Body** (the signature is checked against the exact bytes sent). Activate (or publish) the workflow, then paste its **Production URL** into a new endpoint under Organise → Integrations, and keep the signing secret it shows you.
+   - Copy the URL from the Webhook node itself. It looks like `https://<your-n8n>/webhook/<path>`, not the `https://<your-n8n>/workflow/…` address of the editor page, and not the Test URL (`/webhook-test/…`), which only works while n8n is listening for a test.
+   - On a self-hosted n8n, set `WEBHOOK_URL=https://<your-n8n>/` if the Production URL shows `localhost`.
+   - To check the URL is live, run `curl -i --max-time 15 -X POST -H "Content-Type: application/json" -d "{}" "https://<your-n8n>/webhook/<path>"`. A 200 means it is listening (that run then fails the signature check, as it should); a 404 means the workflow is not active or published, or the path or method is different.
+2. Add a **Code** node after it (Language: **JavaScript**, not Python; mode: *Run Once for All Items*) to check the signature. The Code node needs Node's `crypto` module: set `NODE_FUNCTION_ALLOW_BUILTIN=crypto` in n8n's environment and restart n8n. Store the secret as an n8n variable or environment variable rather than in the code if you can.
 
    ```js
    // Checks that a webhook really came from FOST Call for Speakers, then outputs the event.
@@ -182,7 +185,14 @@ Each delivery carries `X-FOST-Event-Id`, `X-FOST-Event-Type`, `X-FOST-Timestamp`
 3. Add a **Remove Duplicates** node set to *Remove items processed in previous executions*, comparing the field `id`, so a delivery that arrives twice is only handled once.
 4. Branch on `type` with a **Switch** node (for example `proposal.submitted` → receipt email, Soirée newsletter, Pipedrive).
 
-Use **Send test event** on the endpoint's page to try the workflow with a `test.ping`.
+Use **Send test event** on the endpoint's page to try the workflow with a `test.ping`. Both the Webhook and Code nodes should show a tick in n8n. If the Code node fails:
+
+| Message | Cause |
+| --- | --- |
+| `invalid syntax (<unknown>, line 1)` | The Code node's Language is Python; switch it to JavaScript |
+| `Cannot find module 'crypto'` | `NODE_FUNCTION_ALLOW_BUILTIN=crypto` is not set, or n8n was not restarted |
+| `Signature does not match…` | Raw Body is off, or the secret is wrong (regenerate it on the endpoint's page if lost). Expected for an unsigned test such as the curl check |
+| `Webhook is more than five minutes old` | An old execution was re-run; send a fresh test event |
 
 ### Reading data with an API key
 
