@@ -32,7 +32,7 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 | # | Change | What it delivers | Needs | Status |
 |---|---|---|---|---|
 | 0 | `support-month-only-conference-dates` | Open a call when only the conference month is known ("June 2027"); add exact dates later | none | Shipped and archived (4 Nov 2026) |
-| 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Built, awaiting merge |
+| 1 | `add-integration-events` | Signed webhooks to n8n for every meaningful change; API keys and read API for n8n | none | Merged (5 Nov 2026); archive once running on dev-cfp |
 | 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Not started |
 | 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Built, awaiting merge |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Not started |
@@ -55,6 +55,8 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 - **A guest proposal counts only once its emailed confirmation link is clicked.** Until then: no automations; unconfirmed proposals expire.
 - **One emailed single-use link mechanism** (via n8n) covers password reset, claiming guest proposals and committee invites, with an organiser "copy reset link" fallback.
 - **Topic and mini-conference are the same thing.**
+- **Unconfirmed guest proposals are kept for 6 months**, then expire (change 3).
+- **Milestone dates are editable per conference**: T-3 months, T-2 months, T-1 month and T-2 weeks are only the defaults (change 4).
 - **Conferences can open their call with only the month known**; exact dates are added later.
 - **Program capacity differs per conference** and is only known closer to the event, so it must be editable at any time.
 - **Consent form moves from Typeform to Formbricks**, once per person across all conferences.
@@ -73,12 +75,10 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 
 | Question | Change |
 |---|---|
-| How long an unconfirmed guest proposal is kept before it expires | 3 |
 | Where the existing CFPs live (Typeform, Google Sheet…) and a sample row to map columns | 3b |
 | Whether any imported proposals already have a decision, or all arrive as submitted | 3b |
 | Whether the old form's terms cover moving speakers' details into this app, and if the claim email should link the Formbricks consent form | 3b |
 | If changes 1 and 2 are not ready in December: send claim links from an exported spreadsheet (mail merge or n8n) as a stopgap | 3b |
-| Exact milestone offsets per conference (fixed T-3m/T-2m/T-1m/T-2w or editable) | 4 |
 | Which file storage (OVHcloud or Scaleway Object Storage) and size limits for decks and photos | 7 |
 | Speaker card design and what it shows | 7 |
 | Attendance spreadsheet columns | 7 |
