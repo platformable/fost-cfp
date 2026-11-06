@@ -60,7 +60,8 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 - **Conferences can open their call with only the month known**; exact dates are added later.
 - **Program capacity differs per conference** and is only known closer to the event, so it must be editable at any time.
 - **Consent form moves from Typeform to Formbricks**, once per person across all conferences.
-- **Gender wording** for the dashboard will be provided by Mark.
+- **Gender question wording:** "What is your gender?" with the options Female, Male, Prefer not to say, Other (change 8).
+- **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 7).
 - **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker.
 - **Every OpenSpec design includes a JSON Schema of its data model** (rule in `openspec/config.yaml`).
 
@@ -79,8 +80,8 @@ The app becomes the system of record for a speaker's whole relationship with FOS
 | Whether any imported proposals already have a decision, or all arrive as submitted | 3b |
 | Whether the old form's terms cover moving speakers' details into this app, and if the claim email should link the Formbricks consent form | 3b |
 | If changes 1 and 2 are not ready in December: send claim links from an exported spreadsheet (mail merge or n8n) as a stopgap | 3b |
-| Which file storage (OVHcloud or Scaleway Object Storage) and size limits for decks and photos | 7 |
+| Size limits for decks and photos on OVHcloud Object Storage | 7 |
 | Speaker card design and what it shows | 7 |
 | Attendance spreadsheet columns | 7 |
-| Gender field wording (from Mark) and who may see it | 8 |
+| Who may see a speaker's gender answer, and whether "Other" has a free-text box | 8 |
 | How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 8 |
