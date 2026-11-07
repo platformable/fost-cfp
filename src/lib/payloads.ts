@@ -5,6 +5,7 @@
 import { one, query, type Queryable } from './db';
 import { countryName } from './countries';
 import { baseUrl } from './links';
+import { CONFIRMED } from './confirmed';
 
 export interface SpeakerPayload {
   id: number;
@@ -20,6 +21,7 @@ export interface SpeakerPayload {
   country_code: string | null;
   photo_url: string | null;
   headshot_source: 'photo_url' | 'linkedin' | 'missing';
+  account_status: 'active' | 'guest';
 }
 
 export interface ConferencePayload {
@@ -80,6 +82,7 @@ export function speakerPayload(u: Row): SpeakerPayload {
     country_code: orNull(u.country),
     photo_url: orNull(u.photo_url),
     headshot_source: u.photo_url ? 'photo_url' : u.linkedin_profile_url ? 'linkedin' : 'missing',
+    account_status: u.guest ? 'guest' : 'active',
   };
 }
 
@@ -136,13 +139,15 @@ const unpack = (row: Row, alias: string, cols: string[]) => Object.fromEntries(c
 
 const PROPOSAL_SQL = `
   SELECT ${select('p', PROPOSAL_COLUMNS)}, ${select('u', SPEAKER_COLUMNS)}, ${select('c', CONFERENCE_READ)},
+         (u.password_hash = '') AS u_guest,
          to_char(p.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_ts
   FROM proposals p JOIN users u ON u.id = p.speaker_id JOIN conferences c ON c.id = p.conference_id`;
 
-const fromRow = (r: Row) => proposalPayload(unpack(r, 'p', PROPOSAL_COLUMNS), unpack(r, 'u', SPEAKER_COLUMNS), unpack(r, 'c', CONFERENCE_READ));
+
+const fromRow = (r: Row) => proposalPayload(unpack(r, 'p', PROPOSAL_COLUMNS), unpack(r, 'u', [...SPEAKER_COLUMNS, 'guest']), unpack(r, 'c', CONFERENCE_READ));
 
 export async function proposalPayloadById(id: number, db?: Queryable): Promise<ProposalPayload | null> {
-  const row = await one(`${PROPOSAL_SQL} WHERE p.id = $1`, [id], db);
+  const row = await one(`${PROPOSAL_SQL} WHERE p.id = $1 AND ${CONFIRMED('p')}`, [id], db);
   return row ? fromRow(row) : null;
 }
 
@@ -160,7 +165,7 @@ export interface ProposalListFilter {
 export async function listProposalPayloads(f: ProposalListFilter, db?: Queryable):
 Promise<{ items: ProposalPayload[]; cursors: { updatedAt: string; id: number }[] }> {
   const params: unknown[] = [];
-  const clauses: string[] = [];
+  const clauses: string[] = [CONFIRMED('p')];
   const param = (v: unknown) => { params.push(v); return `$${params.length}`; };
   if (f.conferenceId !== undefined) clauses.push(`p.conference_id = ${param(f.conferenceId)}`);
   if (f.status) clauses.push(`${VISIBLE_STATUS_SQL} = ${param(f.status)}`);
@@ -172,7 +177,7 @@ Promise<{ items: ProposalPayload[]; cursors: { updatedAt: string; id: number }[]
 }
 
 export async function speakerPayloadById(id: number, db?: Queryable): Promise<SpeakerPayload | null> {
-  const row = await one(`SELECT ${SPEAKER_COLUMNS.join(', ')} FROM users WHERE id = $1`, [id], db);
+  const row = await one(`SELECT ${SPEAKER_COLUMNS.join(', ')} , (password_hash = '') AS guest FROM users WHERE id = $1`, [id], db);
   return row ? speakerPayload(row) : null;
 }
 

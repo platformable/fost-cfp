@@ -124,7 +124,7 @@ describe('payloads', () => {
     const p = (await payloads.proposalPayloadById(r.ids[0]))!;
     assert.deepEqual(Object.keys(p).sort(), ['abstract', 'co_speakers', 'conference', 'format', 'id', 'level', 'proposal_url', 'review_url',
       'speaker', 'speaker_confirmation', 'status', 'submitted_at', 'title', 'topic', 'updated_at', 'version'].sort());
-    assert.deepEqual(Object.keys(p.speaker).sort(), ['bio', 'country', 'country_code', 'email', 'first_name', 'headshot_source', 'id', 'job_title',
+    assert.deepEqual(Object.keys(p.speaker).sort(), ['account_status', 'bio', 'country', 'country_code', 'email', 'first_name', 'headshot_source', 'id', 'job_title',
       'last_name', 'linkedin_profile_url', 'name', 'organization', 'photo_url'].sort());
     assert.deepEqual(Object.keys(p.conference).sort(), ['cfp_closes', 'cfp_opens', 'date_precision', 'end_date', 'id', 'location', 'name', 'slug',
       'start_date', 'url'].sort());
@@ -134,7 +134,7 @@ describe('payloads', () => {
     assert.deepEqual(p.speaker, {
       id: adaId, name: 'Ada Lovelace', first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com', job_title: 'Mathematician',
       organization: 'Analytical Engines', bio: 'First programmer.', linkedin_profile_url: 'https://www.linkedin.com/in/ada',
-      country: 'United Kingdom', country_code: 'GB', photo_url: null, headshot_source: 'linkedin',
+      country: 'United Kingdom', country_code: 'GB', photo_url: null, headshot_source: 'linkedin', account_status: 'active',
     });
     assert.deepEqual(p.conference, {
       id: conf.id, name: 'Events Conf 2027', slug: 'events-conf-2027', location: 'Paris', start_date: '2027-06-10', end_date: '2027-06-11',

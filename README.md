@@ -95,6 +95,19 @@ submitted ──► accepted ──► speaker confirmed / declined
 - Until an organiser clicks **Publish decisions to speakers**, speakers see "Under review".
 - Changing a decision away from accepted clears the speaker's confirmation.
 
+### Guest submissions
+
+Speakers can apply without an account: signed out, the proposal form asks for their name, email and organisation instead. A guest proposal is saved as **awaiting confirmation** and the speaker is emailed a confirmation link (through n8n, below). Until they use it, the proposal:
+
+- is not shown to the committee and is left out of every export, the API and conference counts;
+- sets off no automations (no `proposal.submitted`).
+
+Organisers only see how many are waiting, on the organiser dashboard, and on **Organise → People** can copy a confirmation link if the email does not arrive. When the speaker confirms, the proposals count as submitted at their original time, and `speaker.registered` (first time) and `proposal.submitted` (one per conference) are sent as usual.
+
+Guests have no password, so they cannot sign in or edit. They can set one when they confirm, or later with **Forgot your password?** or by registering with the same email: both email them a link to claim the account. In events and exports, `account_status` is `guest` until then, `active` after. If the email already belongs to an account, the confirmed proposal joins that account. The form shows the same message either way.
+
+Anti-bot check, with no captcha: a hidden field people never fill in, at least 3 seconds on the form, and at most 5 proposals awaiting confirmation per email address. Proposals still unconfirmed after 6 months, and guest accounts left with nothing, are deleted by the worker.
+
 ## Spreadsheet exports
 
 Go to **Organise → Spreadsheet exports**. Datasets, one row per item:
@@ -201,6 +214,8 @@ The app never sends email itself. When someone needs a link, it records an `emai
 
 - **Forgot your password?** on the sign-in page. Links last 24 hours; at most 3 per email address per hour. The page shows the same message whether or not an account exists.
 - **Committee invites:** on a conference's settings page, add a reviewer's email. If they have no account, you are asked for their name, a reviewer account without a password is created, and they are emailed an invite to set one (valid for 7 days).
+- **Guest confirmations** (`confirm_proposal`): sent after a guest submission; valid for 6 months. `data.proposals` lists what to confirm (`title` and `conference`). Any of a guest's confirmation links confirms everything they have waiting.
+- **Claiming a guest account** (`claim_account`): sent instead of a password reset when a guest uses **Forgot your password?** or registers with their email; valid for 7 days.
 
 Every link works once, and a newer link for the same person and purpose cancels older ones. Opening a link only shows a form; nothing happens until the person saves a password, so email scanners that open links cannot use them up. Setting a password signs the person in and signs them out everywhere else.
 
@@ -212,15 +227,16 @@ Every link works once, and a newer link for the same person and purpose cancels 
   "url": "https://dev-cfp.platformable.com/link/…",
   "expires_at": "2027-01-15T10:30:00Z",
   "recipient": { "id": 42, "name": "Ada Lovelace", "first_name": "Ada", "email": "ada@example.com" },
-  "conference": null
+  "conference": null,
+  "proposals": null
 }
 ```
 
-For `committee_invite`, `conference` is `{ "name": "…", "slug": "…" }`.
+For `committee_invite`, `conference` is `{ "name": "…", "slug": "…" }`. For `confirm_proposal`, `proposals` is a list such as `[{ "title": "…", "conference": "FOST GreenIO Summit" }]`; otherwise it is `null`.
 
 **In n8n:** tick `email_link.requested` on your endpoint (Organise → Integrations → the endpoint → Settings), then add a branch after the Switch on `type`:
 
-1. A second **Switch** on `{{ $json.data.purpose }}` with outputs `password_reset` and `committee_invite`.
+1. A second **Switch** on `{{ $json.data.purpose }}` with outputs `password_reset`, `committee_invite`, `confirm_proposal` and `claim_account`.
 2. On each output, a **Send Email** node (or Gmail, or your mail provider's node):
    - **To:** `{{ $json.data.recipient.email }}`
    - **Subject:** `Reset your FOST Call for Speakers password` or `{{ $json.data.recipient.first_name }}, you're invited to review for {{ $json.data.conference.name }}`
@@ -236,7 +252,19 @@ For `committee_invite`, `conference` is `{ "name": "…", "slug": "…" }`.
      If you did not ask for this, you can ignore this email.
      ```
 
-If an email does not arrive, an organiser can open **Organise → People** and press **Copy password link** next to the person. The link is shown once and no email is sent; send it to them yourself.
+   - For `confirm_proposal`, subject `Please confirm your proposal for FOST` and this body:
+
+     ```
+     Hello {{ $json.data.recipient.first_name }},
+
+     Thank you for your proposal. It only counts once you confirm it:
+     {{ $json.data.proposals.map(p => '- ' + p.title + ' (' + p.conference + ')').join('\n') }}
+
+     Confirm here: {{ $json.data.url }}
+     ```
+   - For `claim_account`, subject `Set a password for your FOST Call for Speakers account`, with the same body as a reset.
+
+If an email does not arrive, an organiser can open **Organise → People** and press **Copy password link** (or **Copy confirmation link** for a guest with proposals waiting) next to the person. The link is shown once and no email is sent; send it to them yourself.
 
 ### Reading data with an API key
 

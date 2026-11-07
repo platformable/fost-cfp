@@ -217,5 +217,5 @@ export async function conferenceStats(conferenceId: number) {
            COUNT(*) FILTER (WHERE speaker_confirmation = 'confirmed') AS confirmed,
            COUNT(*) FILTER (WHERE status = 'submitted') AS pending,
            (SELECT COUNT(*) FROM conference_reviewers WHERE conference_id = $1) AS reviewers
-    FROM proposals WHERE conference_id = $1 AND status <> 'withdrawn'`, [conferenceId]))!;
+    FROM proposals WHERE conference_id = $1 AND status <> 'withdrawn' AND NOT awaiting_confirmation`, [conferenceId]))!;
 }

@@ -4,6 +4,7 @@ import pg from 'pg';
 import { databaseUrl } from './db';
 import { NOTIFY_CHANNEL } from './events';
 import { deliverDue, heartbeat, purgeOldPayloads } from './webhooks';
+import { purgeExpiredGuests } from './guests';
 
 export interface WorkerOptions {
   signal: AbortSignal;
@@ -45,6 +46,8 @@ export async function runWorker({ signal, pollMs = 5000, batch = 10, log = () =>
       if (now - lastPurge >= DAY_MS) {
         const n = await purgeOldPayloads();
         if (n) log(`Removed payloads of ${n} event(s) older than 30 days.`);
+        const expired = await purgeExpiredGuests();
+        if (expired.proposals || expired.accounts) log(`Deleted ${expired.proposals} unconfirmed guest proposal(s) and ${expired.accounts} empty guest account(s) older than 6 months.`);
         lastPurge = now;
       }
       let sent: number;

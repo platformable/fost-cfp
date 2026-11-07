@@ -8,13 +8,15 @@ import { hashPassword, type User } from './auth';
 import { recordEvent } from './events';
 import { baseUrl } from './links';
 
-export const LINK_PURPOSES = ['password_reset', 'committee_invite'] as const;
+export const LINK_PURPOSES = ['password_reset', 'committee_invite', 'confirm_proposal', 'claim_account'] as const;
 export type LinkPurpose = (typeof LINK_PURPOSES)[number];
 
 const HOUR_MS = 3_600_000;
 export const LINK_LIFETIME_MS: Record<LinkPurpose, number> = {
   password_reset: 24 * HOUR_MS,
   committee_invite: 7 * 24 * HOUR_MS,
+  confirm_proposal: 183 * 24 * HOUR_MS, // 6 months, as long as unconfirmed guest proposals are kept
+  claim_account: 7 * 24 * HOUR_MS,
 };
 
 // At most this many password links per email address per hour through the forgot password form.
@@ -40,12 +42,16 @@ export interface IssueOptions {
   email: boolean;
   createdBy?: number | null;
   conference?: { name: string; slug: string } | null;
+  // confirm_proposal: what the guest is confirming, for the email.
+  proposals?: { title: string; conference: string }[] | null;
+  // false keeps earlier unused links working (a guest's older confirmation links still confirm everything).
+  supersede?: boolean;
 }
 
 // Issues a link for `user`, inside the caller's transaction. Earlier unused links for the same
 // person and purpose stop working. Returns the full URL (shown or emailed once, never stored).
 export async function issueLink(db: pg.PoolClient, user: Pick<User, 'id' | 'name' | 'first_name' | 'email'>, opts: IssueOptions) {
-  await query(`UPDATE email_links SET used_at = now()
+  if (opts.supersede !== false) await query(`UPDATE email_links SET used_at = now()
                WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()`, [user.id, opts.purpose], db);
   const token = crypto.randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + LINK_LIFETIME_MS[opts.purpose]);
@@ -60,6 +66,7 @@ export async function issueLink(db: pg.PoolClient, user: Pick<User, 'id' | 'name
       expires_at: expiresAt,
       recipient: { id: user.id, name: user.name, first_name: user.first_name, email: user.email },
       conference: opts.conference ?? null,
+      proposals: opts.proposals ?? null,
     });
   }
   return { url, expiresAt };
@@ -87,6 +94,7 @@ export async function setPasswordWithLink(token: string, password: string): Prom
     if (!link) return { error: 'This link is not valid.' };
     if (link.used_at) return { error: 'This link has already been used.' };
     if (Date.parse(link.expires_at) <= Date.now()) return { error: 'This link has expired.' };
+    if (link.purpose === 'confirm_proposal') return { error: 'This link confirms a proposal. Open it again to confirm.' };
     const user = await one<User>('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2 RETURNING *',
       [hashPassword(password), link.user_id], db);
     await query('UPDATE email_links SET used_at = now() WHERE id = $1', [link.id], db);
@@ -95,14 +103,20 @@ export async function setPasswordWithLink(token: string, password: string): Prom
   });
 }
 
-// Forgot password. Always resolves the same way for the caller; returns true only for tests and logs.
+// A guest (a speaker who has never set a password) gets a "claim your account" link; everyone else a reset.
+export const passwordPurpose = (user: Pick<User, 'password_hash' | 'role'>): LinkPurpose =>
+  (user.password_hash === '' && user.role === 'speaker' ? 'claim_account' : 'password_reset');
+
+// Forgot password (and registering with a guest's email). Always resolves the same way for the
+// caller; returns true only for tests and logs.
 export async function requestPasswordReset(email: string): Promise<boolean> {
   const user = await one<User>('SELECT * FROM users WHERE lower(email) = lower($1)', [email.trim()]);
   if (!user) return false;
   const recent = await one<{ n: number }>(`SELECT COUNT(*) AS n FROM email_links
-    WHERE user_id = $1 AND purpose = 'password_reset' AND created_by IS NULL AND created_at > now() - interval '1 hour'`, [user.id]);
+    WHERE user_id = $1 AND purpose IN ('password_reset', 'claim_account') AND created_by IS NULL
+      AND created_at > now() - interval '1 hour'`, [user.id]);
   if (recent!.n >= RESET_LIMIT_PER_HOUR) return false;
-  await transaction((db) => issueLink(db, user, { purpose: 'password_reset', email: true }));
+  await transaction((db) => issueLink(db, user, { purpose: passwordPurpose(user), email: true }));
   return true;
 }
 
@@ -111,6 +125,6 @@ export async function copyPasswordLink(userId: number, organiserId: number): Pro
   return transaction(async (db) => {
     const user = await one<User>('SELECT * FROM users WHERE id = $1', [userId], db);
     if (!user) return null;
-    return (await issueLink(db, user, { purpose: 'password_reset', email: false, createdBy: organiserId })).url;
+    return (await issueLink(db, user, { purpose: passwordPurpose(user), email: false, createdBy: organiserId })).url;
   });
 }

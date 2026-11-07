@@ -2,14 +2,16 @@ import Link from 'next/link';
 import { submitProposalAction } from '@/actions/proposals';
 import { LEVELS, openConferences } from '@/lib/conferences';
 import { toFormConference } from '@/lib/form-conferences';
-import { requireUser } from '@/lib/session';
+import { currentUser } from '@/lib/session';
+import { formToken } from '@/lib/guests';
 import { ProposalForm } from '@/components/ProposalForm';
 
 export const metadata = { title: 'Submit a proposal' };
 
 export default async function NewProposal({ searchParams }: { searchParams: Promise<{ conference?: string }> }) {
   const { conference } = await searchParams;
-  await requireUser(`/proposals/new${conference ? `?conference=${encodeURIComponent(conference)}` : ''}`);
+  // Signed-out visitors can apply as guests.
+  const user = await currentUser();
   const open = await openConferences();
   if (!open.length) {
     return (
@@ -31,7 +33,8 @@ export default async function NewProposal({ searchParams }: { searchParams: Prom
         conferences={open.map(toFormConference)}
         levels={LEVELS}
         initial={{ values: { level: '' }, selected, picks: {} }}
-        cancelHref="/proposals"
+        cancelHref={user ? '/proposals' : '/'}
+        guest={user ? null : { formStarted: await formToken() }}
       />
     </>
   );

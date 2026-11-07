@@ -3,6 +3,7 @@ import { one, query, transaction } from './db';
 import type { User } from './auth';
 import { LEVELS, todayUtc, type Conference } from './conferences';
 import { recordProposalEvent } from './events';
+import { CONFIRMED } from './confirmed';
 
 export const STATUSES = ['submitted', 'accepted', 'waitlisted', 'rejected', 'withdrawn'] as const;
 export const DECISIONS = ['submitted', 'accepted', 'waitlisted', 'rejected'] as const;
@@ -58,7 +59,7 @@ export async function getProposal(id: number): Promise<ProposalDetail | null> {
            u.country AS speaker_country, u.photo_url AS speaker_photo_url,
            c.name AS conference_name, c.slug AS conference_slug
     FROM proposals p JOIN users u ON u.id = p.speaker_id JOIN conferences c ON c.id = p.conference_id
-    WHERE p.id = $1`, [id]);
+    WHERE p.id = $1 AND ${CONFIRMED('p')}`, [id]);
 }
 
 // ---------- What the speaker can see and do ----------
@@ -158,19 +159,27 @@ async function logHistory(db: pg.PoolClient, proposalId: number, userId: number 
   await query('INSERT INTO proposal_history (proposal_id, user_id, action, detail) VALUES ($1, $2, $3, $4)', [proposalId, userId, action, detail], db);
 }
 
+// Inserts one proposal per conference inside the caller's transaction. Guest proposals are saved as
+// awaiting confirmation; they record no events until the guest confirms (see guests.ts).
+export async function insertProposals(db: pg.PoolClient, speakerId: number, common: CommonValues, picks: { conf: Conference; pick: Choice }[],
+  opts: { awaitingConfirmation?: boolean } = {}): Promise<number[]> {
+  const ids: number[] = [];
+  for (const { conf, pick } of picks) {
+    const row = { ...common, ...pick };
+    const inserted = await one<{ id: number }>(`
+      INSERT INTO proposals (conference_id, speaker_id, awaiting_confirmation, ${PROPOSAL_FIELDS.join(', ')})
+      VALUES ($1, $2, $3, ${PROPOSAL_FIELDS.map((_, i) => `$${i + 4}`).join(', ')}) RETURNING id`,
+    [conf.id, speakerId, !!opts.awaitingConfirmation, ...PROPOSAL_FIELDS.map((f) => row[f])], db);
+    await logHistory(db, inserted!.id, speakerId, 'submitted', opts.awaitingConfirmation ? 'As a guest, awaiting email confirmation' : '');
+    ids.push(inserted!.id);
+  }
+  return ids;
+}
+
 // One submission creates one proposal per conference, all or nothing.
 export async function submitProposals(speakerId: number, common: CommonValues, picks: { conf: Conference; pick: Choice }[]): Promise<number[]> {
   return transaction(async (db) => {
-    const ids: number[] = [];
-    for (const { conf, pick } of picks) {
-      const row = { ...common, ...pick };
-      const inserted = await one<{ id: number }>(`
-        INSERT INTO proposals (conference_id, speaker_id, ${PROPOSAL_FIELDS.join(', ')})
-        VALUES ($1, $2, ${PROPOSAL_FIELDS.map((_, i) => `$${i + 3}`).join(', ')}) RETURNING id`,
-      [conf.id, speakerId, ...PROPOSAL_FIELDS.map((f) => row[f])], db);
-      await logHistory(db, inserted!.id, speakerId, 'submitted');
-      ids.push(inserted!.id);
-    }
+    const ids = await insertProposals(db, speakerId, common, picks);
     // One event per conference, recorded after every row exists so each payload is complete.
     for (const id of ids) await recordProposalEvent(db, 'proposal.submitted', id);
     return ids;
@@ -211,7 +220,7 @@ export async function speakerProposals(speakerId: number) {
   return query<Proposal & { conference_name: string; conference_slug: string }>(`
     SELECT p.*, c.name AS conference_name, c.slug AS conference_slug
     FROM proposals p JOIN conferences c ON c.id = p.conference_id
-    WHERE p.speaker_id = $1 ORDER BY p.submitted_at DESC, p.id DESC`, [speakerId]);
+    WHERE p.speaker_id = $1 AND ${CONFIRMED('p')} ORDER BY p.submitted_at DESC, p.id DESC`, [speakerId]);
 }
 
 export async function history(proposalId: number, actions?: string[]) {
@@ -250,7 +259,7 @@ export async function bulkDecide(conferenceId: number, ids: number[], status: st
   return transaction(async (db) => {
     let n = 0;
     for (const id of ids) {
-      const p = await one<Proposal>('SELECT * FROM proposals WHERE id = $1 AND conference_id = $2', [id, conferenceId], db);
+      const p = await one<Proposal>('SELECT * FROM proposals WHERE id = $1 AND conference_id = $2 AND NOT awaiting_confirmation', [id, conferenceId], db);
       if (p && p.status !== 'withdrawn') { await applyDecision(db, p, status, userId); n += 1; }
     }
     return n;
@@ -263,7 +272,7 @@ export interface ReviewFilter { status: string; topic: string; todo: boolean; so
 
 export async function reviewList(conf: Conference, user: User, filter: ReviewFilter) {
   const params: unknown[] = [user.id, conf.id];
-  const clauses = ['p.conference_id = $2'];
+  const clauses = ['p.conference_id = $2', CONFIRMED('p')];
   if (filter.status) { params.push(filter.status); clauses.push(`p.status = $${params.length}`); } else clauses.push(`p.status <> 'withdrawn'`);
   if (filter.topic) { params.push(filter.topic); clauses.push(`p.topic = $${params.length}`); }
   if (filter.todo) clauses.push('my.id IS NULL AND p.speaker_id <> $1');
@@ -291,7 +300,7 @@ export async function reviewList(conf: Conference, user: User, filter: ReviewFil
 }
 
 export async function statusCounts(conferenceId: number): Promise<Record<string, number>> {
-  const rows = await query<{ status: string; n: number }>('SELECT status, COUNT(*) AS n FROM proposals WHERE conference_id = $1 GROUP BY status', [conferenceId]);
+  const rows = await query<{ status: string; n: number }>('SELECT status, COUNT(*) AS n FROM proposals WHERE conference_id = $1 AND NOT awaiting_confirmation GROUP BY status', [conferenceId]);
   return Object.fromEntries(rows.map((r) => [r.status, r.n]));
 }
 
@@ -311,7 +320,7 @@ export async function saveReview(proposalId: number, reviewerId: number, score: 
 
 // Previous and next active proposals in the committee list order (newest first).
 export async function neighbours(conferenceId: number, proposalId: number) {
-  const ids = (await query<{ id: number }>(`SELECT id FROM proposals WHERE conference_id = $1 AND status <> 'withdrawn'
+  const ids = (await query<{ id: number }>(`SELECT id FROM proposals WHERE conference_id = $1 AND status <> 'withdrawn' AND NOT awaiting_confirmation
     ORDER BY submitted_at DESC, id DESC`, [conferenceId])).map((r) => r.id);
   const i = ids.indexOf(proposalId);
   return { prevId: i > 0 ? ids[i - 1] : null, nextId: i >= 0 && i < ids.length - 1 ? ids[i + 1] : null };

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { conferenceStats, listConferences } from '@/lib/conferences';
 import { CFP_LABELS, conferenceDates, formatDate } from '@/lib/format';
 import { requireRole } from '@/lib/session';
+import { awaitingCounts } from '@/lib/guests';
 import { Badge } from '@/components/ui';
 
 export const metadata = { title: 'Organiser dashboard' };
@@ -10,6 +11,7 @@ export default async function AdminHome() {
   await requireRole(['admin'], '/admin');
   const confs = await listConferences({ includeArchived: true });
   const rows = await Promise.all(confs.map(async (c) => ({ ...c, stats: await conferenceStats(c.id) })));
+  const awaiting = await awaitingCounts();
   const sum = (k: 'total' | 'pending' | 'accepted' | 'confirmed') => rows.reduce((n, c) => n + c.stats[k], 0);
   return (
     <>
@@ -38,7 +40,7 @@ export default async function AdminHome() {
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id} className={c.archived ? 'dim' : ''}>
-                  <td><strong><Link href={`/review/conferences/${c.id}`}>{c.name}</Link></strong><br /><span className="small muted">{conferenceDates(c)}{c.start_date && c.date_precision === 'month' && ' (month only)'}</span></td>
+                  <td><strong><Link href={`/review/conferences/${c.id}`}>{c.name}</Link></strong><br /><span className="small muted">{conferenceDates(c)}{c.start_date && c.date_precision === 'month' && ' (month only)'}</span>{awaiting[c.id] ? <><br /><span className="small muted">{awaiting[c.id]} guest proposal{awaiting[c.id] === 1 ? '' : 's'} awaiting email confirmation</span></> : null}</td>
                   <td><Badge status={`cfp-${c.cfpState}`} label={CFP_LABELS[c.cfpState]} />{c.cfp_closes && <><br /><span className="small muted">closes {formatDate(c.cfp_closes)}</span></>}</td>
                   <td className="num">{c.stats.total}</td>
                   <td className="num">{c.stats.pending}</td>

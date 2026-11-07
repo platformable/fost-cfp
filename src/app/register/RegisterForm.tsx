@@ -8,6 +8,14 @@ import { Errors } from '@/components/ui';
 export function RegisterForm({ next }: { next: string }) {
   const [state, action] = useActionState<AuthState, FormData>(registerAction, {});
   const v = state.values ?? {};
+  if (state.sent) {
+    return (
+      <div className="flash flash-success" role="status">
+        <p style={{ marginTop: 0 }}>Check your email: we have sent a link to {state.sent} to set your password.</p>
+        <p style={{ marginBottom: 0, fontWeight: 400 }}>You have already sent us a proposal with this address, so your account is waiting for you. The link works once and lasts 7 days.</p>
+      </div>
+    );
+  }
   return (
     <form action={action} className="form" key={JSON.stringify(v)}>
       <Errors errors={state.error} />
