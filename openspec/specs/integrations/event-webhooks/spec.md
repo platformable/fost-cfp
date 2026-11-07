@@ -17,7 +17,7 @@ The system SHALL record an event in the same database transaction as the change 
 - **THEN** no event is recorded
 
 ### Requirement: Initial event catalogue
-The system SHALL emit these event types: `speaker.registered`, `speaker.profile_updated`, `proposal.submitted`, `proposal.updated`, `proposal.withdrawn`, `proposal.speaker_confirmed` and `proposal.speaker_declined`. Submitting one proposal to several conferences SHALL emit one `proposal.submitted` event per conference.
+The system SHALL emit these event types: `speaker.registered`, `speaker.profile_updated`, `proposal.submitted`, `proposal.updated`, `proposal.withdrawn`, `proposal.speaker_confirmed`, `proposal.speaker_declined` and `email_link.requested`. Submitting one proposal to several conferences SHALL emit one `proposal.submitted` event per conference. An `email_link.requested` event SHALL only be delivered to endpoints that have chosen it.
 
 #### Scenario: Multi-conference submission
 - **WHEN** a speaker submits one proposal to two conferences
@@ -31,6 +31,10 @@ The system SHALL emit these event types: `speaker.registered`, `speaker.profile_
 - **WHEN** a speaker confirms an accepted proposal
 - **THEN** a `proposal.speaker_confirmed` event is recorded
 
+#### Scenario: Existing endpoint does not get links
+- **WHEN** a password reset link is issued and the only endpoint was created before this change with all the events it offered then
+- **THEN** that endpoint receives nothing until an organiser ticks `email_link.requested` for it
+
 ### Requirement: Event envelope
 Every event SHALL be delivered as a JSON object with a unique `id`, a `type`, an `occurred_at` timestamp in UTC (ISO 8601), a payload format `version` (starting at 1) and a `data` object. The `id` SHALL stay the same across every delivery attempt of that event.
 
@@ -39,7 +43,7 @@ Every event SHALL be delivered as a JSON object with a unique `id`, a `type`, an
 - **THEN** both attempts carry the same `id`, `type` and `occurred_at`
 
 ### Requirement: Payloads are self-contained
-Proposal events SHALL include the proposal (title, abstract, format, topic, level, co-speakers, speaker-visible status, links), the speaker's profile (name, first and last name, email, job title, organisation, bio, LinkedIn URL, country name and code, headshot URL and headshot source) and the conference (name, slug, location, dates). Speaker events SHALL include the speaker's profile.
+Proposal events SHALL include the proposal (title, abstract, format, topic, level, co-speakers, speaker-visible status, links), the speaker's profile (name, first and last name, email, job title, organisation, bio, LinkedIn URL, country name and code, headshot URL and headshot source, and whether the speaker has a full account or is a guest) and the conference (name, slug, location, dates). Speaker events SHALL include the speaker's profile.
 
 #### Scenario: n8n adds a speaker to Pipedrive
 - **WHEN** n8n receives `proposal.submitted`
@@ -48,6 +52,10 @@ Proposal events SHALL include the proposal (title, abstract, format, topic, leve
 #### Scenario: Profile changes
 - **WHEN** a speaker changes their bio
 - **THEN** a `speaker.profile_updated` event is recorded with the updated profile and a list of the fields that changed
+
+#### Scenario: Guest speaker
+- **WHEN** n8n receives `proposal.submitted` for a confirmed guest proposal
+- **THEN** the speaker's `account_status` is `guest`, so the receipt email can invite them to claim their account
 
 ### Requirement: Conference dates state their precision
 Conference dates in payloads SHALL say whether they are exact days or known only to the month, so automations never treat a placeholder day as real.

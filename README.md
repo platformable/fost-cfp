@@ -234,35 +234,55 @@ Every link works once, and a newer link for the same person and purpose cancels 
 
 For `committee_invite`, `conference` is `{ "name": "…", "slug": "…" }`. For `confirm_proposal`, `proposals` is a list such as `[{ "title": "…", "conference": "FOST GreenIO Summit" }]`; otherwise it is `null`.
 
-**In n8n:** tick `email_link.requested` on your endpoint (Organise → Integrations → the endpoint → Settings), then add a branch after the Switch on `type`:
+**In n8n:** tick `email_link.requested` on your endpoint (Organise → Integrations → the endpoint → Settings). Then, after the Remove Duplicates node:
 
-1. A second **Switch** on `{{ $json.data.purpose }}` with outputs `password_reset`, `committee_invite`, `confirm_proposal` and `claim_account`.
-2. On each output, a **Send Email** node (or Gmail, or your mail provider's node):
-   - **To:** `{{ $json.data.recipient.email }}`
-   - **Subject:** `Reset your FOST Call for Speakers password` or `{{ $json.data.recipient.first_name }}, you're invited to review for {{ $json.data.conference.name }}`
-   - **Body:**
+1. In the **Switch** on `type` (Mode: Rules), set one rule to `{{ $json.type }}` *is equal to* `email_link.requested` (optionally rename the output `Emails`).
+2. On that output, add a **Code** node (Mode: *Run Once for All Items*, Language: **JavaScript**) called `Write email`, and paste this. It writes the right subject and text for each purpose, so no second Switch is needed:
 
-     ```
-     Hello {{ $json.data.recipient.first_name }},
+   ```js
+   // Writes the email for each email_link.requested event: who it goes to, the subject and the text.
 
-     Use this link to choose your password:
-     {{ $json.data.url }}
+   // While testing, list your own addresses here (in lowercase) so nobody else gets emails,
+   // e.g. ['you@example.com', 'you+guest1@example.com']. An empty list sends to everyone.
+   const TEST_ONLY = [];
 
-     It works once and expires on {{ DateTime.fromISO($json.data.expires_at).setZone('Europe/London').toFormat('d MMMM yyyy, HH:mm') }} (UK time).
-     If you did not ask for this, you can ignore this email.
-     ```
+   const emails = [];
+   for (const item of $input.all()) {
+     const d = item.json.data;
+     if (TEST_ONLY.length > 0 && !TEST_ONLY.includes(d.recipient.email.toLowerCase())) continue;
+     const name = d.recipient.first_name || d.recipient.name;
+     const expires = DateTime.fromISO(d.expires_at).setZone('Europe/London').toFormat("d MMMM yyyy 'at' HH:mm");
+     let subject;
+     let lines;
+     if (d.purpose === 'password_reset') {
+       subject = 'Reset your FOST Call for Speakers password';
+       lines = ['Use this link to choose a new password:', d.url];
+     } else if (d.purpose === 'committee_invite') {
+       subject = `You're invited to review proposals for ${d.conference ? d.conference.name : 'FOST'}`;
+       lines = [`You have been added to the program committee${d.conference ? ` for ${d.conference.name}` : ''}.`,
+         'Use this link to set your password and start reviewing:', d.url];
+     } else if (d.purpose === 'confirm_proposal') {
+       subject = 'Please confirm your proposal for FOST';
+       lines = ['Thank you for your proposal. It only counts once you confirm it:',
+         ...(d.proposals || []).map((p) => `- ${p.title} (${p.conference})`), '', 'Confirm here:', d.url];
+     } else if (d.purpose === 'claim_account') {
+       subject = 'Set a password for your FOST Call for Speakers account';
+       lines = ['Use this link to set a password, so you can sign in and edit your proposals:', d.url];
+     } else {
+       continue; // a kind of link this workflow doesn't know yet
+     }
+     const text = [`Hello ${name},`, '', ...lines, '',
+       `The link works once and expires on ${expires} (UK time).`,
+       "If you didn't ask for this, you can ignore this email.", '', 'FOST Call for Speakers'].join('\n');
+     emails.push({ json: { to: d.recipient.email, subject, text } });
+   }
+   return emails;
+   ```
 
-   - For `confirm_proposal`, subject `Please confirm your proposal for FOST` and this body:
+3. After it, add a **Send Email** node (or Gmail or Outlook) with **To** `{{ $json.to }}`, **Subject** `{{ $json.subject }}`, **Email Format** *Text* and **Text** `{{ $json.text }}`. Choose the sending account in its credential and set **From Email**. Turn off *Append n8n Attribution* if offered.
+4. Save and publish (or activate) the workflow, then test with **Forgot your password?** on your own email.
 
-     ```
-     Hello {{ $json.data.recipient.first_name }},
-
-     Thank you for your proposal. It only counts once you confirm it:
-     {{ $json.data.proposals.map(p => '- ' + p.title + ' (' + p.conference + ')').join('\n') }}
-
-     Confirm here: {{ $json.data.url }}
-     ```
-   - For `claim_account`, subject `Set a password for your FOST Call for Speakers account`, with the same body as a reset.
+To move to a different sending address later, change only the email node's credential and From address.
 
 If an email does not arrive, an organiser can open **Organise → People** and press **Copy password link** (or **Copy confirmation link** for a guest with proposals waiting) next to the person. The link is shown once and no email is sent; send it to them yourself.
 
