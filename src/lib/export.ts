@@ -12,12 +12,13 @@ type Row = Record<string, unknown>;
 
 export { baseUrl } from './links';
 import { baseUrl } from './links';
+import { CONFIRMED } from './confirmed';
 
 // Where to get a speaker's headshot: their own photo URL if given, otherwise their LinkedIn profile photo.
 const headshotSource = (photoUrl: unknown, linkedinUrl: unknown) => (photoUrl ? 'photo_url' : linkedinUrl ? 'linkedin' : 'missing');
 
 function where(f: ExportFilters) {
-  const clauses: string[] = [];
+  const clauses: string[] = [CONFIRMED('p')];
   const params: unknown[] = [];
   if (f.conferenceId !== undefined) { params.push(f.conferenceId); clauses.push(`p.conference_id = $${params.length}`); }
   if (f.status) { params.push(f.status); clauses.push(`p.status = $${params.length}`); }
@@ -99,12 +100,16 @@ async function speakers(f: ExportFilters = {}): Promise<Row[]> {
            COUNT(*) FILTER (WHERE p.status = 'withdrawn') AS proposals_withdrawn,
            COUNT(*) FILTER (WHERE p.speaker_confirmation = 'confirmed') AS talks_confirmed,
            string_agg(DISTINCT c.name, ',') AS conferences,
-           u.created_at, u.updated_at
+           u.created_at, u.updated_at, (u.password_hash = '') AS _guest
     FROM users u JOIN proposals p ON p.speaker_id = u.id JOIN conferences c ON c.id = p.conference_id
     ${w.sql}
     GROUP BY u.id
     ORDER BY lower(u.last_name), lower(u.first_name)`, w.params);
-  return rows.map((r) => ({ ...r, country: countryName(r.country), headshot_source: headshotSource(r.photo_url, r.linkedin_profile_url) }));
+  // account_status goes after every existing column, so sheets that read columns by position keep working.
+  return rows.map(({ _guest, ...r }) => ({
+    ...r, country: countryName(r.country), headshot_source: headshotSource(r.photo_url, r.linkedin_profile_url),
+    account_status: _guest ? 'guest' : 'active',
+  }));
 }
 
 async function reviews(f: ExportFilters = {}): Promise<Row[]> {
@@ -128,7 +133,7 @@ async function conferences(): Promise<Row[]> {
            COUNT(*) FILTER (WHERE p.status = 'accepted') AS proposals_accepted,
            COUNT(*) FILTER (WHERE p.speaker_confirmation = 'confirmed') AS talks_confirmed,
            c.date_precision AS _date_precision
-    FROM conferences c LEFT JOIN proposals p ON p.conference_id = c.id
+    FROM conferences c LEFT JOIN proposals p ON p.conference_id = c.id AND ${CONFIRMED('p')}
     GROUP BY c.id ORDER BY c.start_date NULLS LAST, c.id`);
   const yes = (v: unknown) => (v ? 'yes' : 'no');
   // New columns go after all existing ones, so sheets that read columns by position keep working.

@@ -22,7 +22,7 @@ export default async function ReviewHome() {
       SELECT COUNT(*) AS total,
              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM reviews r WHERE r.proposal_id = p.id AND r.reviewer_id = $1)) AS mine,
              COUNT(*) FILTER (WHERE p.status = 'accepted') AS accepted
-      FROM proposals p WHERE p.conference_id = $2 AND p.status <> 'withdrawn' AND p.speaker_id <> $1`, [user.id, c.id]))!,
+      FROM proposals p WHERE p.conference_id = $2 AND p.status <> 'withdrawn' AND p.speaker_id <> $1 AND NOT p.awaiting_confirmation`, [user.id, c.id]))!,
   })));
   return (
     <>

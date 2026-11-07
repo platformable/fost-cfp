@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { copyPasswordLinkAction, setRoleAction } from '@/actions/admin';
+import { copyConfirmationLinkAction } from '@/actions/guests';
 import { CopyLink } from './CopyLink';
 import { listUsers } from '@/lib/users';
 import { formatDate } from '@/lib/format';
@@ -28,10 +29,10 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td><strong>{u.name}</strong></td>
+                <td><strong>{u.name}</strong>{!u.password_hash && u.role === 'speaker' && <> <span className="badge badge-paused">Guest</span></>}</td>
                 <td><a href={`mailto:${u.email}`}>{u.email}</a></td>
                 <td>{u.organization}</td>
-                <td className="num">{u.proposal_count}</td>
+                <td className="num">{u.proposal_count}{u.awaiting_count > 0 && <><br /><span className="small muted nowrap">+{u.awaiting_count} awaiting confirmation</span><br /><CopyLink action={copyConfirmationLinkAction.bind(null, u.id)} name={u.name} label="Copy confirmation link" note="Works once, for 6 months." /></>}</td>
                 <td className="nowrap">{formatDate(u.created_at)}</td>
                 <td>
                   <form action={setRoleAction.bind(null, u.id)} className="inline-form">

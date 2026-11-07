@@ -22,10 +22,12 @@ interface Props {
   levels: string[];
   initial: Required<Pick<ProposalFormState, 'values' | 'selected' | 'picks'>>;
   cancelHref: string;
+  // Signed-out visitors: show "About you" and the anti-bot fields (the signed time the form was shown).
+  guest?: { formStarted: string } | null;
 }
 
 // Write a proposal once and send it to one or more conferences, choosing a format and topic for each.
-export function ProposalForm({ mode, action, conferences, levels, initial, cancelHref }: Props) {
+export function ProposalForm({ mode, action, conferences, levels, initial, cancelHref, guest }: Props) {
   const [state, formAction] = useActionState(action, initial);
   const [selected, setSelected] = useState<number[]>(initial.selected);
   // After a failed submit, keep the conferences that were ticked.
@@ -51,6 +53,26 @@ export function ProposalForm({ mode, action, conferences, levels, initial, cance
               window.alert('Choose at least one conference to submit to.');
             }
           }}>
+          {guest && (
+            <fieldset className="conf-picks">
+              <legend>About you</legend>
+              <p className="small muted">No account needed. We will email you a link to confirm your proposal; it only counts once you confirm.
+                Already have an account? <Link href="/login?next=/proposals/new">Sign in</Link> instead.</p>
+              <div className="field-row">
+                <label>First name <input name="guest_first_name" defaultValue={values.guest_first_name} required autoComplete="given-name" /></label>
+                <label>Last name <input name="guest_last_name" defaultValue={values.guest_last_name} autoComplete="family-name" /></label>
+              </div>
+              <div className="field-row">
+                <label>Email <input type="email" name="guest_email" defaultValue={values.guest_email} required autoComplete="email" /></label>
+                <label>Organisation <span className="opt">optional</span> <input name="guest_organization" defaultValue={values.guest_organization} autoComplete="organization" /></label>
+              </div>
+              <input type="hidden" name="form_started" value={guest.formStarted} />
+              {/* Left empty by people; bots fill it in. */}
+              <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+                <label>Website <input name="website" tabIndex={-1} autoComplete="off" defaultValue="" /></label>
+              </div>
+            </fieldset>
+          )}
           <fieldset className="conf-picks">
             <legend>{editing ? 'Conference' : 'Conferences'}</legend>
             {!editing && <p className="small muted">Tick every conference you want to speak at, then choose a session format and topic for each.</p>}

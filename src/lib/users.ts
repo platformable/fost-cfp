@@ -1,5 +1,6 @@
 import { one, query, transaction } from './db';
 import { recordSpeakerEvent } from './events';
+import { requestPasswordReset } from './email-links';
 import { findUserByEmail, hashPassword, verifyPassword, type Role, type User } from './auth';
 import { isCountryCode } from './countries';
 import { safeUrl } from './format';
@@ -10,11 +11,17 @@ export type ProfileValues = Record<(typeof PROFILE_FIELDS)[number], string>;
 export interface RegisterValues { first_name: string; last_name: string; email: string; organization: string }
 
 // The very first account becomes the organiser (admin), so a fresh install can be set up from the browser.
-export async function register(values: RegisterValues, password: string): Promise<{ user?: User; error?: string }> {
+export async function register(values: RegisterValues, password: string): Promise<{ user?: User; error?: string; claimSent?: boolean }> {
   if (!values.first_name) return { error: 'Please enter your first name.' };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return { error: 'Please enter a valid email address.' };
   if (password.length < 8) return { error: 'Password must be at least 8 characters.' };
-  if (await findUserByEmail(values.email)) return { error: 'An account with that email already exists. Try signing in.' };
+  const existing = await findUserByEmail(values.email);
+  // A guest (no password yet) claims their account by email, so nobody can take it over by registering.
+  if (existing && existing.password_hash === '' && existing.role === 'speaker') {
+    await requestPasswordReset(existing.email);
+    return { claimSent: true };
+  }
+  if (existing) return { error: 'An account with that email already exists. Try signing in.' };
   const user = await transaction(async (db) => {
     const row = await one<User>(`
       INSERT INTO users (email, password_hash, first_name, last_name, organization, role)
@@ -78,8 +85,9 @@ export async function changePassword(user: User, current: string, next: string):
 
 export async function listUsers(search: string) {
   const q = `%${search.trim()}%`;
-  return query<User & { proposal_count: number }>(`
-    SELECT u.*, (SELECT COUNT(*) FROM proposals p WHERE p.speaker_id = u.id) AS proposal_count
+  return query<User & { proposal_count: number; awaiting_count: number }>(`
+    SELECT u.*, (SELECT COUNT(*) FROM proposals p WHERE p.speaker_id = u.id AND NOT p.awaiting_confirmation) AS proposal_count,
+           (SELECT COUNT(*) FROM proposals p WHERE p.speaker_id = u.id AND p.awaiting_confirmation) AS awaiting_count
     FROM users u
     WHERE $1 = '%%' OR u.name ILIKE $1 OR u.email ILIKE $1 OR u.organization ILIKE $1
     ORDER BY u.created_at DESC LIMIT 500`, [q]);

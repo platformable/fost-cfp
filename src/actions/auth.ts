@@ -42,7 +42,8 @@ export async function registerAction(_prev: AuthState, form: FormData): Promise<
     email: String(form.get('email') ?? '').trim().toLowerCase(),
     organization: String(form.get('organization') ?? '').trim(),
   };
-  const { user, error } = await register(values, String(form.get('password') ?? ''));
+  const { user, error, claimSent } = await register(values, String(form.get('password') ?? ''));
+  if (claimSent) return { sent: values.email };
   if (!user) return { error, values };
   await startSession(user.id);
   const isAdmin = user.role === 'admin';

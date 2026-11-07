@@ -4,10 +4,11 @@ import { redirect } from 'next/navigation';
 import { getConference, openConferences, type Conference } from '@/lib/conferences';
 import {
   canSpeakerEdit, confirmSlot, editDeadline, getProposal, readCommon, readConferenceChoice, submitProposals,
-  updateBySpeaker, withdraw, type Choice,
+  updateBySpeaker, withdraw, type Choice, type CommonValues,
 } from '@/lib/proposals';
 import { formatDate } from '@/lib/format';
-import { flash, requireUser } from '@/lib/session';
+import { MAX_AWAITING_PER_EMAIL, looksLikeBot, readGuest, submitAsGuest } from '@/lib/guests';
+import { currentUser, flash, requireUser } from '@/lib/session';
 
 export interface ProposalFormState {
   errors?: string[];
@@ -17,7 +18,7 @@ export interface ProposalFormState {
 }
 
 export async function submitProposalAction(_prev: ProposalFormState, form: FormData): Promise<ProposalFormState> {
-  const user = await requireUser('/proposals/new');
+  const user = await currentUser();
   const ids = [...new Set(form.getAll('conference_ids').map(Number).filter(Number.isInteger))];
   const confs = (await Promise.all(ids.map((id) => getConference(id)))).filter((c): c is Conference => !!c);
   const chosen = confs.filter((c) => c.cfpOpen);
@@ -32,6 +33,7 @@ export async function submitProposalAction(_prev: ProposalFormState, form: FormD
     picks[conf.id] = r.pick;
     errors.push(...r.errors);
   }
+  if (!user) return submitAsGuestAction(form, values, errors, chosen, picks);
   if (errors.length) return { errors, values, selected: chosen.map((c) => c.id), picks };
 
   const newIds = await submitProposals(user.id, values, chosen.map((conf) => ({ conf, pick: picks[conf.id] })));
@@ -42,6 +44,26 @@ export async function submitProposalAction(_prev: ProposalFormState, form: FormD
   }
   await flash('success', `Thanks! Your proposal has been submitted to ${chosen.length} conferences: ${chosen.map((c) => c.name).join(', ')}. Each one is reviewed separately, and you can edit each one on its own.`);
   redirect('/proposals');
+}
+
+// Signed-out visitors submit as guests: nothing counts until they confirm by email. Bots get the
+// same "check your email" page as everyone else, with nothing saved.
+async function submitAsGuestAction(form: FormData, values: CommonValues, errors: string[], chosen: Conference[], picks: Record<number, Choice>):
+Promise<ProposalFormState> {
+  const { guest, errors: guestErrors } = readGuest(form);
+  const guestValues = { guest_first_name: guest.first_name, guest_last_name: guest.last_name, guest_email: guest.email, guest_organization: guest.organization };
+  const all = [...guestErrors, ...errors];
+  if (all.length) return { errors: all, values: { ...values, ...guestValues }, selected: chosen.map((c) => c.id), picks };
+  const sent = `/proposals/check-email?email=${encodeURIComponent(guest.email)}`;
+  if (await looksLikeBot(form)) redirect(sent);
+  const result = await submitAsGuest(guest, values, chosen.map((conf) => ({ conf, pick: picks[conf.id] })));
+  if (result.status === 'too_many') {
+    return {
+      errors: [`There are already ${MAX_AWAITING_PER_EMAIL} proposals waiting for ${guest.email} to be confirmed. Please use the link in the confirmation email first, then submit again.`],
+      values: { ...values, ...guestValues }, selected: chosen.map((c) => c.id), picks,
+    };
+  }
+  redirect(sent);
 }
 
 async function ownProposal(id: number, userId: number) {
