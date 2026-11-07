@@ -1,5 +1,6 @@
-import { one, query } from './db';
+import { one, query, transaction } from './db';
 import type { User } from './auth';
+import { issueLink } from './email-links';
 
 import { DEFAULT_FORMATS } from './formats';
 
@@ -181,13 +182,28 @@ export async function committee(conferenceId: number) {
     WHERE cr.conference_id = $1 ORDER BY u.last_name, u.first_name`, [conferenceId]);
 }
 
-// Adds someone to a committee by email; a speaker becomes a reviewer.
-export async function addReviewer(conferenceId: number, email: string): Promise<{ name?: string; error?: string }> {
-  const user = await one<{ id: number; name: string; role: string }>('SELECT id, name, role FROM users WHERE lower(email) = lower($1)', [email.trim()]);
-  if (!user) return { error: `No account found for ${email}. Ask them to register first, then add them here.` };
-  if (user.role === 'speaker') await query(`UPDATE users SET role = 'reviewer', updated_at = now() WHERE id = $1`, [user.id]);
-  await query('INSERT INTO conference_reviewers (conference_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [conferenceId, user.id]);
-  return { name: user.name };
+// Adds someone to a committee by email; a speaker becomes a reviewer. Someone with no account is
+// invited: given a name, a reviewer account without a password is created and an invite link is
+// emailed (through n8n) so they can set one. Without a name, `needsName` asks the organiser for it.
+export async function addReviewer(conferenceId: number, email: string, names?: { first_name: string; last_name: string }):
+Promise<{ name?: string; invited?: boolean; needsName?: boolean; error?: string }> {
+  const address = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return { error: 'Please enter a valid email address.' };
+  return transaction(async (db) => {
+    const user = await one<{ id: number; name: string; role: string }>('SELECT id, name, role FROM users WHERE lower(email) = $1', [address], db);
+    if (user) {
+      if (user.role === 'speaker') await query(`UPDATE users SET role = 'reviewer', updated_at = now() WHERE id = $1`, [user.id], db);
+      await query('INSERT INTO conference_reviewers (conference_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [conferenceId, user.id], db);
+      return { name: user.name };
+    }
+    if (!names?.first_name.trim()) return { needsName: true };
+    const created = await one<User>(`INSERT INTO users (email, password_hash, first_name, last_name, role)
+      VALUES ($1, '', $2, $3, 'reviewer') RETURNING *`, [address, names.first_name.trim(), names.last_name.trim()], db);
+    await query('INSERT INTO conference_reviewers (conference_id, user_id) VALUES ($1, $2)', [conferenceId, created!.id], db);
+    const conf = await one<{ name: string; slug: string }>('SELECT name, slug FROM conferences WHERE id = $1', [conferenceId], db);
+    await issueLink(db, created!, { purpose: 'committee_invite', email: true, conference: conf });
+    return { name: created!.name, invited: true };
+  });
 }
 
 export async function removeReviewer(conferenceId: number, userId: number): Promise<void> {

@@ -13,6 +13,7 @@ export const EVENT_TYPES = [
   'proposal.withdrawn',
   'proposal.speaker_confirmed',
   'proposal.speaker_declined',
+  'email_link.requested',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number] | 'test.ping';
 
@@ -28,6 +29,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   'proposal.withdrawn': 'A speaker withdraws a proposal',
   'proposal.speaker_confirmed': 'A speaker confirms their slot',
   'proposal.speaker_declined': 'A speaker declines their slot',
+  'email_link.requested': 'A password or invite link needs emailing (n8n sends the email)',
   'test.ping': 'Test event',
 };
 
