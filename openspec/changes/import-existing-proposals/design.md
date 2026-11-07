@@ -18,7 +18,7 @@ The Typeform export (sample from Mark, two responses) is a **semicolon-separated
 | **Speaker fields** | Name, gender, a gender `Other`, job title, company, email, "Where are you based?" (country names such as `France, Metropolitan`), LinkedIn URL |
 | **Talk fields** | Title, abstract, level |
 | **Topic columns** | One per topic choice, between the level column and the MC question, including a second `Other` |
-| **Yes/no answers** | MC, APIMasters instructor and sponsoring, as `1`/`0`; plus teaching topics as free text |
+| **Yes/no answers** | MC, APIMasters instructor and sponsoring, as `1`/`0`; plus teaching topics as free text. Only MC is imported. |
 | **Terms** | The terms acceptance |
 | **Metadata** | Response type, start and submit dates, network id, tags, ending |
 
@@ -43,7 +43,7 @@ Both the CSV parser and the API turn a response into the same object:
 { response_id, submitted_at, conferences: [choice label], topics: [choice label],
   first_name, last_name, email, job_title, company, linkedin, based_in,
   title, abstract, level,
-  gender, gender_other, mc, apimasters, teaching_topics, sponsoring, terms_accepted }
+  gender, gender_other, mc, terms_accepted }
 ```
 
 One function, `importResponse(db, response, opts)`, applies every rule.
@@ -74,7 +74,7 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
 
 ### 5. Speakers
 - The email is lowercased and matched against `users`. With no account, a guest is created (`role = 'speaker'`, `password_hash = ''`).
-- For an existing account, only empty fields are filled: job title, organisation, LinkedIn, country.
+- For an existing account, only empty fields are filled: job title, organisation, LinkedIn, country, gender, MC interest.
 - **Country:** "Where are you based?" is mapped to an ISO code using the app's country names plus a small alias list: `France, Metropolitan` → FR, `United States of America` → US, `UK` and `England` → GB. Unknown values are left empty and listed in the preview.
 - **LinkedIn:** goes through the same `normalizeLinkedIn()` as the profile form. A value that isn't a LinkedIn URL is dropped and listed in the preview.
 
@@ -84,15 +84,34 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
   - format `Talk (25 min)`;
   - level mapped to the app's levels, otherwise empty;
   - `submitted_at` set to the Typeform submit date in UTC.
-- **Topic** for each conference: the first of the response's topics (in column order) that is in that conference's topic list after confirmation. The preview lists `(conference, topic)` pairs that are missing, and confirming adds them to the conference's topic list, in one transaction with the import.
-- **Other answers:**
-  - **Stored** in `source_answers` (JSONB): gender (mapped) and gender as written, MC, APIMasters, teaching topics, sponsoring, terms accepted and the response id.
-  - **Shown** on the proposal page in an "Imported from Typeform" box, visible to organisers only.
-  - **Exported** in the submissions export as two new last columns:
-    - `source`;
-    - `typeform_answers`, a readable summary such as `Gender: Female · Sponsoring: interested · MC: yes · APIMasters: no`.
-  - **Not in events:** the gender answer never goes into event payloads or the API.
-- **Gender mapping:** trimmed and lowercased.
+- **Topic** for each conference: the first of the response's ticked topics (in column order) that is in that conference's topic list.
+- **Kept with the proposal** in `source_details` (JSONB, organisers only): the response id, when the terms were accepted, the topics the speaker ticked, and the gender answer as written. These are shown in an "Imported from Typeform" box on the proposal page.
+- **Not imported:** the sponsoring, APIMasters and teaching-topic columns are read past and dropped.
+
+### 6a. Topic exceptions
+- A proposal is an exception when its conference has a topic list and none of the speaker's ticked topics is on it. It is imported with an empty topic and `topic_exception = true`, and the ticked topics are kept in `source_details`.
+- A conference with no topic list never produces exceptions; its proposals simply have no topic, as today.
+- **Organise → Import → Topic exceptions** lists them by conference: speaker, title and ticked topics. For each, the organiser can:
+  - pick one of the conference's topics;
+  - add one of the ticked topics to the conference's topic list and use it;
+  - accept "no topic".
+
+  Each choice sets the topic, clears `topic_exception` and logs a history entry.
+- The same list catches exceptions from the live sync, so nothing is held back while waiting for an organiser. The proposal is in the committee list without a topic until it is resolved.
+- The preview shows how many exceptions an import would create, by conference.
+- *Alternative:* adding missing topics to the conference automatically. Rejected because one speaker's "Travel Tech Day" tick would otherwise change a conference's topic list.
+
+### 6b. Profile fields: gender and MC interest
+- `users.gender` (`Female`, `Male`, `Prefer not to say`, `Other`, or empty) and `users.mc_interest` (true, false or empty) are added to the profile form under a "More about you (optional)" heading.
+- **Gender:**
+  - Shown to the speaker and organisers only: on the People page and on the committee proposal page when the viewer is an organiser.
+  - Kept out of the speaker payload, the API, exports and `changed_fields`. Saving a profile where only gender changed records no event.
+  - This is enforced in `payloads.ts` (which never selects it) and in `saveProfile()`, which leaves it out of the change list.
+- **MC interest:**
+  - Added to the speaker payload as `mc_interest`.
+  - Added to the speakers export as `mc_interest` and the submissions export as `speaker_mc_interest`, both after the existing columns.
+  - A change records `speaker.profile_updated` with `mc_interest` in `changed_fields`.
+- **Gender mapping from Typeform:** trimmed and lowercased.
 
   | Typeform answer | Stored as |
   |---|---|
@@ -102,9 +121,13 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
   | `other`, or the gender `Other` column filled in | Other |
   | anything else | Other (and listed in the preview) |
 
+  The answer as written is kept in `source_details`.
+- **MC from Typeform:** `1` maps to true and `0` to false.
+
 ### 7. Events
 - `proposal.imported` is added to the event catalogue. Like `email_link.requested`, existing endpoints only receive it once ticked.
-- Its `data` is the usual `{ proposal }` plus `typeform: { response_id, sponsoring, mc, apimasters }`, with no gender. The speaker's `account_status` is `guest` for new people.
+- Its `data` is the usual `{ proposal }` plus `typeform: { response_id }`. The speaker object carries `account_status` (`guest` for new people) and `mc_interest`, and never gender.
+- **MC candidates:** n8n reads `mc_interest` from `proposal.imported` and `speaker.profile_updated` to fill the overview sheet's MC tab and start the MC email thread. The sheet tab is built with `add-overview-sheet-sync`.
 - No `proposal.submitted` or `speaker.registered` is recorded. At cutover, n8n can treat `proposal.imported` as the "received" record for the overview sheet.
 
 ### 8. The write endpoint
@@ -138,13 +161,14 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
 ## Migration Plan
 
 1. Migration `007_imports.sql` adds:
-   - `proposals.source` (default `'app'`), `source_ref` and `source_answers`, plus the partial unique index;
+   - `users.gender` and `users.mc_interest`;
+   - `proposals.source` (default `'app'`), `source_ref`, `source_details` and `topic_exception`, plus the partial unique index;
    - `email_links.batch`;
    - the `import_batches` table.
 
    It only adds things, so it is safe on a live database.
 2. Deploy to dev and test with the fake sample file. Set up production, map the conferences, import the real export there, then switch on the n8n Typeform → API workflow on production.
-3. **Rollback:** imported proposals can be removed with `DELETE FROM proposals WHERE source <> 'app'`, and guests left with nothing are then removed by the worker's clean-up.
+3. **Rollback:** imported proposals can be removed with `DELETE FROM proposals WHERE source <> 'app'`, and guests left with nothing are then removed by the worker's clean-up. The profile columns can stay; older code ignores them.
 
 ## Data model
 
@@ -156,32 +180,37 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
   "$id": "https://dev-cfp.platformable.com/schema/import-existing-proposals.json",
   "title": "import-existing-proposals data model",
   "$defs": {
+    "table_users": {
+      "description": "Existing table; other columns unchanged.",
+      "type": "object",
+      "properties": {
+        "gender": { "type": ["string", "null"], "enum": ["Female", "Male", "Prefer not to say", "Other", null], "description": "NEW: optional; seen by the speaker and organisers only; never in payloads, the API or exports." },
+        "mc_interest": { "type": ["boolean", "null"], "description": "NEW: optional; null when unanswered." }
+      }
+    },
     "table_proposals": {
       "description": "Existing table; other columns unchanged.",
       "type": "object",
       "properties": {
         "source": { "type": "string", "enum": ["app", "typeform_import", "typeform_sync"], "default": "app", "description": "NEW: where the proposal came from." },
         "source_ref": { "type": ["string", "null"], "description": "NEW: Typeform response id; unique per conference when set." },
-        "source_answers": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/typeform_answers" }], "description": "NEW: other Typeform answers; organisers only." },
+        "source_details": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/typeform_details" }], "description": "NEW: import details; organisers only." },
+        "topic_exception": { "type": "boolean", "default": false, "description": "NEW: true while an imported proposal's topic needs an organiser to choose it." },
         "submitted_at": { "type": "string", "format": "date-time", "description": "For imports, the Typeform submit time." },
         "awaiting_confirmation": { "type": "boolean", "description": "Always false for imports." }
       },
-      "required": ["source"]
+      "required": ["source", "topic_exception"]
     },
-    "typeform_answers": {
-      "description": "NEW: shape of proposals.source_answers.",
+    "typeform_details": {
+      "description": "NEW: shape of proposals.source_details.",
       "type": "object",
       "properties": {
         "response_id": { "type": "string" },
-        "gender": { "type": ["string", "null"], "enum": ["Female", "Male", "Prefer not to say", "Other", null] },
-        "gender_as_written": { "type": "string" },
-        "mc": { "type": ["boolean", "null"] },
-        "apimasters": { "type": ["boolean", "null"] },
-        "teaching_topics": { "type": "string" },
-        "sponsoring": { "type": ["boolean", "null"] },
-        "terms_accepted_at": { "type": ["string", "null"], "format": "date-time" }
+        "terms_accepted_at": { "type": ["string", "null"], "format": "date-time" },
+        "topics_ticked": { "type": "array", "items": { "type": "string" } },
+        "gender_as_written": { "type": "string" }
       },
-      "required": ["response_id"],
+      "required": ["response_id", "topics_ticked"],
       "additionalProperties": false
     },
     "table_import_batches": {
@@ -192,7 +221,7 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
         "filename": { "type": "string" },
         "content": { "type": ["string", "null"], "description": "The uploaded CSV; cleared once imported." },
         "status": { "type": "string", "enum": ["uploaded", "imported", "discarded"] },
-        "counts": { "type": ["object", "null"], "description": "Speakers created or matched, proposals created, responses skipped." },
+        "counts": { "type": ["object", "null"], "description": "Speakers created or matched, proposals created, topic exceptions, responses skipped." },
         "created_by": { "type": ["integer", "null"] },
         "created_at": { "type": "string", "format": "date-time" },
         "imported_at": { "type": ["string", "null"], "format": "date-time" }
@@ -233,9 +262,6 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
         "gender": { "type": "string" },
         "gender_other": { "type": "string" },
         "mc": { "type": ["boolean", "null"] },
-        "apimasters": { "type": ["boolean", "null"] },
-        "teaching_topics": { "type": "string" },
-        "sponsoring": { "type": ["boolean", "null"] },
         "terms_accepted": { "type": "boolean" }
       },
       "required": ["response_id", "submitted_at", "conferences", "email", "title"],
@@ -246,25 +272,29 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
       "type": "object",
       "properties": {
         "proposals": { "type": "array", "items": { "type": "integer" } },
+        "topic_exceptions": { "type": "array", "items": { "type": "integer" }, "description": "Proposal ids that went on the topic exceptions list." },
         "already_imported": { "type": "boolean" },
         "skipped": { "type": "string", "enum": ["no mapped conferences"] },
         "unmapped": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "payload_event_proposal_imported": {
-      "description": "NEW: data of a proposal.imported event. The proposal object is the existing payload_proposal (its speaker includes account_status).",
+    "payload_speaker": {
+      "description": "Existing speaker object in events and API responses. CHANGED: adds mc_interest; gender is never included.",
       "type": "object",
       "properties": {
-        "proposal": { "type": "object", "description": "payload_proposal, unchanged." },
+        "mc_interest": { "type": ["boolean", "null"], "description": "NEW" }
+      },
+      "required": ["mc_interest"]
+    },
+    "payload_event_proposal_imported": {
+      "description": "NEW: data of a proposal.imported event. The proposal object is the existing payload_proposal (its speaker includes account_status and mc_interest).",
+      "type": "object",
+      "properties": {
+        "proposal": { "type": "object", "description": "payload_proposal, unchanged apart from the speaker's mc_interest." },
         "typeform": {
           "type": "object",
-          "properties": {
-            "response_id": { "type": "string" },
-            "sponsoring": { "type": ["boolean", "null"] },
-            "mc": { "type": ["boolean", "null"] },
-            "apimasters": { "type": ["boolean", "null"] }
-          },
+          "properties": { "response_id": { "type": "string" } },
           "required": ["response_id"],
           "additionalProperties": false
         }
@@ -272,16 +302,17 @@ The `typeform_conference_map` setting holds JSON: `{ "<choice label>": <conferen
       "required": ["proposal", "typeform"],
       "additionalProperties": false
     },
-    "export_submissions_row": {
-      "description": "submissions export. CHANGED: two new columns after all existing ones.",
+    "export_columns": {
+      "description": "CHANGED: new columns after all existing ones; existing columns keep names and positions.",
       "type": "object",
       "properties": {
-        "source": { "type": "string", "description": "NEW" },
-        "typeform_answers": { "type": "string", "description": "NEW: readable summary, empty for proposals made in the app." }
+        "submissions.source": { "type": "string", "description": "NEW: app, typeform_import or typeform_sync." },
+        "submissions.speaker_mc_interest": { "type": "string", "enum": ["yes", "no", ""], "description": "NEW" },
+        "speakers.mc_interest": { "type": "string", "enum": ["yes", "no", ""], "description": "NEW (after account_status)." }
       }
     }
   }
 }
 ```
 
-The gender answer is held only in `source_answers` and shown to organisers. It is not in event payloads or `/api/v1/`. The dashboard change decides who else may see it.
+The gender answer lives in `users.gender` and is shown only to the speaker and organisers. It is not in event payloads, `/api/v1/` or exports. The dashboard change decides whether totals by gender are shown, and to whom.

@@ -10,7 +10,8 @@ Brings speaker proposals collected outside the app (the Typeform call for speake
 Organisers SHALL be able to upload a Typeform CSV export and see, before anything is saved:
 - how many speakers and proposals would be created, and how many responses are skipped because they were already imported;
 - the conference each Typeform conference column maps to;
-- the topics, countries and gender answers that could not be matched.
+- how many proposals would go on the topic exceptions list;
+- which countries and gender answers could not be matched.
 
 Nothing SHALL be saved until the organiser confirms. Only organisers (admins) SHALL be able to import.
 
@@ -30,20 +31,26 @@ Each Typeform conference column SHALL be mapped by an organiser to an app confer
 - **THEN** no speaker or proposal is created for that response
 
 ### Requirement: One proposal per conference ticked
-For each mapped conference a response ticks, the system SHALL create one proposal with:
-- the response's talk title, abstract and audience level;
-- the session format "Talk (25 min)";
-- as topic, the first ticked topic that is in that conference's topic list.
-
-Topics a response names that a mapped conference does not list SHALL be shown in the preview and added to that conference's topic list when the organiser confirms. The proposal SHALL keep the response's submission time.
+For each mapped conference a response ticks, the system SHALL create one proposal with the response's talk title, abstract and audience level, the session format "Talk (25 min)", and the response's submission time. Its topic SHALL be the first ticked topic that is in that conference's topic list.
 
 #### Scenario: Topic chosen per conference
-- **WHEN** a response ticks the topics OpenAPI and GreenIO and two conferences, one whose topic list has GreenIO but not OpenAPI
-- **THEN** that conference's proposal has the topic GreenIO, and the other conference's has OpenAPI if it lists it
+- **WHEN** a response ticks the topics OpenAPI and GreenIO and two conferences, one listing GreenIO but not OpenAPI and the other listing OpenAPI
+- **THEN** the first conference's proposal has the topic GreenIO and the second's has OpenAPI
+
+### Requirement: Topics that cannot be allocated go on an exceptions list
+When none of a response's ticked topics is in a mapped conference's topic list, and that conference has a topic list, the proposal SHALL still be imported without a topic and SHALL appear on a topic exceptions list with the topics the speaker ticked. Organisers SHALL resolve each exception by choosing a topic from the conference's list, adding one of the ticked topics to the conference's list and using it, or importing it without a topic. Resolved proposals SHALL leave the list.
+
+#### Scenario: No matching topic
+- **WHEN** a response ticks only "Travel Tech Day" and a conference whose topics do not include it
+- **THEN** the proposal is imported with no topic and is listed as an exception showing "Travel Tech Day"
+
+#### Scenario: Organiser resolves it
+- **WHEN** an organiser chooses the conference's topic "APIs" for that exception
+- **THEN** the proposal's topic becomes "APIs" and it leaves the exceptions list
 
 ### Requirement: Speakers are matched by email and become guests
 The system SHALL match each response's speaker by email address, ignoring case.
-- With no matching account, it SHALL create a guest (a speaker account without a password) with the response's first and last name, job title, company, LinkedIn URL and country.
+- With no matching account, it SHALL create a guest (a speaker account without a password) from the response's first and last name, job title, company, LinkedIn URL, country, gender answer and MC answer.
 - An existing account's details SHALL NOT be overwritten, except that empty profile fields MAY be filled in.
 - Several responses with the same email SHALL become proposals of one speaker.
 
@@ -54,6 +61,10 @@ The system SHALL match each response's speaker by email address, ignoring case.
 #### Scenario: Existing speaker
 - **WHEN** a response's email belongs to an account with a password
 - **THEN** the proposals are added to that account and its name and organisation are unchanged
+
+#### Scenario: Misspelt gender
+- **WHEN** a new speaker's response answers "Fermale"
+- **THEN** their profile's gender is Female
 
 ### Requirement: Imported proposals already count
 Imported proposals SHALL NOT await email confirmation. They SHALL appear to the committee, in exports and in the API like any other proposal, with the status "under review" unless an organiser decides otherwise.
@@ -73,26 +84,12 @@ Importing SHALL record one `proposal.imported` event per proposal created and SH
 - **WHEN** an organiser imports a file of 200 responses
 - **THEN** no `email_link.requested`, `proposal.submitted` or `speaker.registered` event is recorded
 
-### Requirement: Other Typeform answers are kept
-For each imported proposal the system SHALL keep the response's other answers:
-- gender, mapped to Female, Male, Prefer not to say or Other, with the original answer kept;
-- interest in sponsoring, being an MC and being an APIMasters instructor, with teaching topics;
-- when the terms were accepted, and the Typeform response id.
-
-#### Scenario: Misspelt gender
-- **WHEN** a response answers "Fermale"
-- **THEN** the stored gender is Female and the original answer "Fermale" is kept alongside
-
-### Requirement: Who sees the Typeform answers
-Organisers SHALL see the Typeform answers on the proposal page. The submissions export SHALL include them, with the proposal's source, in new columns after all existing columns. Speakers, reviewers, event payloads and the integration API SHALL NOT include the gender answer.
-
-#### Scenario: Reviewer view
-- **WHEN** a reviewer opens an imported proposal
-- **THEN** no gender answer is shown
+### Requirement: Import origin is kept
+Each imported proposal SHALL keep its Typeform response id and when the speaker accepted Typeform's terms, shown to organisers on the proposal page. The submissions export SHALL add a `source` column after all existing columns. Typeform answers about sponsoring and the APIMasters programme SHALL NOT be imported.
 
 #### Scenario: Export columns
 - **WHEN** an organiser downloads the submissions export after an import
-- **THEN** every existing column keeps its name and position, and `source` and `typeform_answers` come last
+- **THEN** every existing column keeps its name and position, and `source` comes after them
 
 ### Requirement: Claim-your-account emails
 Organisers SHALL be able to email every imported guest who has not claimed their account. Each guest SHALL get one `claim_account` link valid for 30 days, through the usual `email_link.requested` event. Guests already sent one SHALL be skipped unless the organiser chooses to resend. The page SHALL show how many will be emailed before sending.

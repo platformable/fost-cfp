@@ -120,7 +120,9 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **A guest proposal counts only once its emailed confirmation link is clicked.** Until then: no automations; unconfirmed proposals expire after 6 months.
 - **One emailed single-use link mechanism** (via n8n) covers password reset, claiming guest accounts, guest confirmations and committee invites, with an organiser "copy link" fallback.
 - **Consent form moves from Typeform to Formbricks**, once per person across all conferences.
-- **Gender question wording:** "What is your gender?" with the options Female, Male, Prefer not to say, Other (change 10).
+- **Gender and MC interest are optional profile fields** (change 3b). Gender ("What is your gender?": Female, Male, Prefer not to say, Other) is seen only by the speaker and organisers and never leaves the app; the dashboard (change 10) decides whether totals are shown. MC interest goes to n8n (`mc_interest`), which fills an MC tab on the overview sheet and starts an MC email thread (change 4).
+- **Typeform's sponsoring and APIMasters questions are not imported.** Sponsorship comes from vendor outreach (change 6); APIMasters is not used in any process yet.
+- **Topics that cannot be matched on import go on a topic exceptions list** for an organiser to resolve; conferences' topic lists are never changed automatically.
 
 ### Conferences
 
