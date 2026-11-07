@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { setRoleAction } from '@/actions/admin';
+import { copyPasswordLinkAction, setRoleAction } from '@/actions/admin';
+import { CopyLink } from './CopyLink';
 import { listUsers } from '@/lib/users';
 import { formatDate } from '@/lib/format';
 import { requireRole } from '@/lib/session';
@@ -23,7 +24,7 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
       </div>
       <div className="table-wrap card flush">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Organisation</th><th className="num">Proposals</th><th>Joined</th><th>Role</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Organisation</th><th className="num">Proposals</th><th>Joined</th><th>Role</th><th>Password</th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
@@ -39,6 +40,10 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
                     </AutoSubmitSelect>
                     <noscript><button className="btn btn-small">Save</button></noscript>
                   </form>
+                </td>
+                <td>
+                  {!u.password_hash && <><span className="small muted">Not set yet</span><br /></>}
+                  <CopyLink action={copyPasswordLinkAction.bind(null, u.id)} name={u.name} />
                 </td>
               </tr>
             ))}

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { addReviewer, readConferenceForm, removeReviewer, saveConference, setConferenceFlag } from '@/lib/conferences';
 import { setSetting } from '@/lib/db';
 import { setRole } from '@/lib/users';
+import { copyPasswordLink } from '@/lib/email-links';
 import { flash, requireRole } from '@/lib/session';
 import type { Role } from '@/lib/auth';
 
@@ -37,9 +38,23 @@ export async function conferenceFlagAction(id: number, form: FormData): Promise<
 export async function addReviewerAction(id: number, form: FormData): Promise<void> {
   await requireRole(['admin']);
   const email = String(form.get('email') ?? '').trim();
-  const result = await addReviewer(id, email);
-  await flash(result.error ? 'error' : 'success', result.error ?? `${result.name} added to the program committee.`);
+  const names = { first_name: String(form.get('first_name') ?? ''), last_name: String(form.get('last_name') ?? '') };
+  const result = await addReviewer(id, email, names);
+  if (result.needsName) {
+    await flash('error', `No account found for ${email}. Add their first and last name to invite them: they will be emailed a link to set a password.`);
+    redirect(`/admin/conferences/${id}?invite=${encodeURIComponent(email)}#committee`);
+  }
+  await flash(result.error ? 'error' : 'success', result.error ?? (result.invited
+    ? `${result.name} invited to the program committee. They have been emailed a link to set a password (valid for 7 days).`
+    : `${result.name} added to the program committee.`));
   redirect(`/admin/conferences/${id}#committee`);
+}
+
+// Organiser fallback when a link email does not arrive: shown once, no email sent.
+export async function copyPasswordLinkAction(userId: number): Promise<{ url?: string; error?: string }> {
+  const me = await requireRole(['admin']);
+  const url = await copyPasswordLink(userId, me.id);
+  return url ? { url } : { error: 'That account no longer exists.' };
 }
 
 export async function removeReviewerAction(id: number, userId: number): Promise<void> {

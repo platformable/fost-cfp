@@ -6,8 +6,9 @@ import { requireRole } from '@/lib/session';
 import { SubmitButton } from '@/components/SubmitButton';
 import { ConferenceForm } from '../ConferenceForm';
 
-export default async function EditConference({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditConference({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ invite?: string }> }) {
   const id = Number((await params).id);
+  const invite = (await searchParams).invite ?? '';
   await requireRole(['admin'], `/admin/conferences/${id}`);
   const conf = Number.isInteger(id) ? await getConference(id) : null;
   if (!conf) notFound();
@@ -48,11 +49,17 @@ export default async function EditConference({ params }: { params: Promise<{ id:
                 </li>
               ))}
             </ul>
-            <form action={addReviewerAction.bind(null, conf.id)} className="form inline-form">
-              <input type="email" name="email" placeholder="reviewer@example.com" required aria-label="Reviewer email" />
-              <SubmitButton className="btn btn-small">Add reviewer</SubmitButton>
+            <form action={addReviewerAction.bind(null, conf.id)} className={invite ? 'stack-form' : 'inline-form'} key={invite}>
+              <input type="email" name="email" placeholder="reviewer@example.com" defaultValue={invite} required aria-label="Reviewer email" />
+              {invite && <>
+                <input name="first_name" placeholder="First name" required autoFocus aria-label="First name" />
+                <input name="last_name" placeholder="Last name" aria-label="Last name" />
+              </>}
+              <SubmitButton className="btn btn-small">{invite ? 'Invite reviewer' : 'Add reviewer'}</SubmitButton>
             </form>
-            <p className="small muted">The person needs an account first. Adding them gives them the reviewer role.</p>
+            <p className="small muted">{invite
+              ? 'They will be emailed a link to set a password, valid for 7 days. If it does not arrive, use "Copy password link" on the People page.'
+              : 'Adding someone gives them the reviewer role. If they have no account yet, you will be asked for their name and they will be emailed an invite.'}</p>
           </section>
 
           <section className="card">

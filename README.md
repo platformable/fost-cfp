@@ -137,6 +137,7 @@ Go to **Organise → Integrations** (organisers only). Two things live there:
 | `proposal.updated` | A speaker saves a changed proposal; `data.changed_fields` lists what changed |
 | `proposal.withdrawn` | A speaker withdraws a proposal |
 | `proposal.speaker_confirmed` / `proposal.speaker_declined` | A speaker answers an accepted proposal |
+| `email_link.requested` | A password reset or committee invite link needs emailing; see [Emailed links](#emailed-links-password-resets-and-invites). Only sent to endpoints that tick it |
 | `test.ping` | "Send test event" on an endpoint's page |
 
 Every delivery body looks like this:
@@ -193,6 +194,49 @@ Use **Send test event** on the endpoint's page to try the workflow with a `test.
 | `Cannot find module 'crypto'` | `NODE_FUNCTION_ALLOW_BUILTIN=crypto` is not set, or n8n was not restarted |
 | `Signature does not match…` | Raw Body is off, or the secret is wrong (regenerate it on the endpoint's page if lost). Expected for an unsigned test such as the curl check |
 | `Webhook is more than five minutes old` | An old execution was re-run; send a fresh test event |
+
+### Emailed links: password resets and invites
+
+The app never sends email itself. When someone needs a link, it records an `email_link.requested` event and n8n sends the email:
+
+- **Forgot your password?** on the sign-in page. Links last 24 hours; at most 3 per email address per hour. The page shows the same message whether or not an account exists.
+- **Committee invites:** on a conference's settings page, add a reviewer's email. If they have no account, you are asked for their name, a reviewer account without a password is created, and they are emailed an invite to set one (valid for 7 days).
+
+Every link works once, and a newer link for the same person and purpose cancels older ones. Opening a link only shows a form; nothing happens until the person saves a password, so email scanners that open links cannot use them up. Setting a password signs the person in and signs them out everywhere else.
+
+`data` in the event looks like this:
+
+```json
+{
+  "purpose": "password_reset",
+  "url": "https://dev-cfp.platformable.com/link/…",
+  "expires_at": "2027-01-15T10:30:00Z",
+  "recipient": { "id": 42, "name": "Ada Lovelace", "first_name": "Ada", "email": "ada@example.com" },
+  "conference": null
+}
+```
+
+For `committee_invite`, `conference` is `{ "name": "…", "slug": "…" }`.
+
+**In n8n:** tick `email_link.requested` on your endpoint (Organise → Integrations → the endpoint → Settings), then add a branch after the Switch on `type`:
+
+1. A second **Switch** on `{{ $json.data.purpose }}` with outputs `password_reset` and `committee_invite`.
+2. On each output, a **Send Email** node (or Gmail, or your mail provider's node):
+   - **To:** `{{ $json.data.recipient.email }}`
+   - **Subject:** `Reset your FOST Call for Speakers password` or `{{ $json.data.recipient.first_name }}, you're invited to review for {{ $json.data.conference.name }}`
+   - **Body:**
+
+     ```
+     Hello {{ $json.data.recipient.first_name }},
+
+     Use this link to choose your password:
+     {{ $json.data.url }}
+
+     It works once and expires on {{ DateTime.fromISO($json.data.expires_at).setZone('Europe/London').toFormat('d MMMM yyyy, HH:mm') }} (UK time).
+     If you did not ask for this, you can ignore this email.
+     ```
+
+If an email does not arrive, an organiser can open **Organise → People** and press **Copy password link** next to the person. The link is shown once and no email is sent; send it to them yourself.
 
 ### Reading data with an API key
 
