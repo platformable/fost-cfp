@@ -120,7 +120,7 @@ describe('a guest submission awaits confirmation', () => {
     assert.ok(await props.getProposal(ids[0]));
     const speakersRow = (await exp.DATASETS.speakers({})).find((r) => r.email === 'gus@example.com')!;
     assert.equal(speakersRow.account_status, 'guest');
-    assert.equal(Object.keys(speakersRow).at(-1), 'account_status', 'added as the last column');
+    assert.deepEqual(Object.keys(speakersRow).slice(-2), ['account_status', 'mc_interest'], 'added after the existing columns');
     assert.match((await guests.confirmWithLink(tokenOf(link.url))).error!, /already been used/);
   });
 

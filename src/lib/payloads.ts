@@ -22,6 +22,7 @@ export interface SpeakerPayload {
   photo_url: string | null;
   headshot_source: 'photo_url' | 'linkedin' | 'missing';
   account_status: 'active' | 'guest';
+  mc_interest: boolean | null;
 }
 
 export interface ConferencePayload {
@@ -59,7 +60,7 @@ export interface ProposalPayload {
   conference: ConferencePayload;
 }
 
-const SPEAKER_COLUMNS = ['id', 'name', 'first_name', 'last_name', 'email', 'job_title', 'organization', 'bio', 'linkedin_profile_url', 'country', 'photo_url'];
+const SPEAKER_COLUMNS = ['id', 'name', 'first_name', 'last_name', 'email', 'job_title', 'organization', 'bio', 'linkedin_profile_url', 'country', 'photo_url', 'mc_interest'];
 const CONFERENCE_COLUMNS = ['id', 'name', 'slug', 'location', 'start_date', 'end_date', 'date_precision', 'cfp_opens', 'cfp_closes'];
 const CONFERENCE_READ = [...CONFERENCE_COLUMNS, 'decisions_published'];
 const PROPOSAL_COLUMNS = ['id', 'title', 'abstract', 'format', 'topic', 'level', 'co_speakers', 'status', 'speaker_confirmation', 'version', 'submitted_at', 'updated_at'];
@@ -83,6 +84,7 @@ export function speakerPayload(u: Row): SpeakerPayload {
     photo_url: orNull(u.photo_url),
     headshot_source: u.photo_url ? 'photo_url' : u.linkedin_profile_url ? 'linkedin' : 'missing',
     account_status: u.guest ? 'guest' : 'active',
+    mc_interest: u.mc_interest ?? null,
   };
 }
 

@@ -14,6 +14,7 @@ export const EVENT_TYPES = [
   'proposal.speaker_confirmed',
   'proposal.speaker_declined',
   'email_link.requested',
+  'proposal.imported',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number] | 'test.ping';
 
@@ -30,6 +31,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   'proposal.speaker_confirmed': 'A speaker confirms their slot',
   'proposal.speaker_declined': 'A speaker declines their slot',
   'email_link.requested': 'A password or invite link needs emailing (n8n sends the email)',
+  'proposal.imported': 'A proposal is imported from Typeform (no emails; one event per conference)',
   'test.ping': 'Test event',
 };
 

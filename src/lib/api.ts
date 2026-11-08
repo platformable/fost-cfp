@@ -16,7 +16,12 @@ export const apiError = (code: ErrorCode, message: string, headers: Record<strin
 
 export const notFound = (what: string) => new ApiError('not_found', `No ${what} with that id.`);
 
-const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+// Returned by a handler that created something: answered with 201 instead of 200.
+export class Created {
+  constructor(public body: unknown) {}
+}
+
+const WRITE_METHODS =new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // Checks the key, its scope and the rate limit, then runs the handler. Errors become JSON.
 export async function apiRoute(req: Request, handler: (key: ApiKey) => Promise<unknown>): Promise<Response> {
@@ -30,6 +35,8 @@ export async function apiRoute(req: Request, handler: (key: ApiKey) => Promise<u
     if (wait) throw new ApiError('rate_limited', 'Too many requests: the limit is 600 per minute per key.', { 'Retry-After': String(wait) });
     if (WRITE_METHODS.has(req.method) && key.scope !== 'read-write') throw new ApiError('forbidden', 'This API key can only read data.');
     const body = await handler(key);
+    // A handler that created something returns new Created(body) to answer 201.
+    if (body instanceof Created) return Response.json(body.body, { status: 201, headers: { 'Cache-Control': 'no-store' } });
     return Response.json(body, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     if (err instanceof ApiError) return apiError(err.code, err.message, err.headers);

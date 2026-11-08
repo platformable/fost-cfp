@@ -36,6 +36,10 @@ export interface Proposal {
   updated_at: string;
   decided_at: string | null;
   confirmed_at: string | null;
+  source: 'app' | 'typeform_import' | 'typeform_sync';
+  source_ref: string | null;
+  source_details: { response_id: string; terms_accepted_at: string | null; topics_ticked: string[]; gender_as_written: string } | null;
+  topic_exception: boolean;
 }
 
 export interface ProposalDetail extends Proposal {
@@ -155,7 +159,7 @@ export function readConferenceChoice(form: FormData, conf: Conference, opts: { n
   return { pick, errors };
 }
 
-async function logHistory(db: pg.PoolClient, proposalId: number, userId: number | null, action: string, detail = '') {
+export async function logHistory(db: pg.PoolClient, proposalId: number, userId: number | null, action: string, detail = '') {
   await query('INSERT INTO proposal_history (proposal_id, user_id, action, detail) VALUES ($1, $2, $3, $4)', [proposalId, userId, action, detail], db);
 }
 

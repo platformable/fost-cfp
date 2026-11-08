@@ -18,6 +18,8 @@ export interface User {
   phone: string;
   country: string;
   photo_url: string;
+  gender: string | null;
+  mc_interest: boolean | null;
   created_at: string;
   updated_at: string;
 }

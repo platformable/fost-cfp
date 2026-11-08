@@ -6,6 +6,7 @@ import { countryName } from '@/lib/countries';
 import { DECISIONS, RECOMMENDATIONS, getProposal, history, neighbours, reviewsFor } from '@/lib/proposals';
 import { formatDate, safeUrl, statusLabel } from '@/lib/format';
 import { requireRole } from '@/lib/session';
+import { speakerOrganiserDetails } from '@/lib/users';
 import { SubmitButton } from '@/components/SubmitButton';
 import { Badge, Prose } from '@/components/ui';
 
@@ -20,6 +21,8 @@ export default async function ReviewProposal({ params }: { params: Promise<{ id:
   const isOwn = p.speaker_id === user.id;
 
   const [all, nav, log] = await Promise.all([reviewsFor(p.id), neighbours(conf.id, p.id), admin ? history(p.id) : Promise.resolve([])]);
+  // Gender and MC interest are for organisers only; reviewers never load them.
+  const extra = admin ? await speakerOrganiserDetails(p.speaker_id) : null;
   const mine = all.find((r) => r.reviewer_id === user.id);
   // Reviewers see colleagues' reviews only after submitting their own, to avoid anchoring.
   const showOthers = admin || !!mine;
@@ -55,6 +58,12 @@ export default async function ReviewProposal({ params }: { params: Promise<{ id:
                 <strong>{p.speaker_name}</strong>{p.speaker_job_title && `, ${p.speaker_job_title}`}{p.speaker_organization && ` · ${p.speaker_organization}`}
                 {p.speaker_country && ` · ${countryName(p.speaker_country)}`}
                 {admin && <><br /><a href={`mailto:${p.speaker_email}`}>{p.speaker_email}</a></>}
+                {extra && (extra.gender || extra.mc_interest !== null) && (
+                  <><br /><span className="small muted">Organisers only: {[
+                    extra.gender && `gender: ${extra.gender}`,
+                    extra.mc_interest !== null && `open to being an MC: ${extra.mc_interest ? 'yes' : 'no'}`,
+                  ].filter(Boolean).join(' · ')}</span></>
+                )}
                 {linkedin && <><br /><a href={linkedin} target="_blank" rel="noopener">LinkedIn profile</a></>}
               </p>
               {p.speaker_bio && <Prose>{p.speaker_bio}</Prose>}
@@ -125,10 +134,26 @@ export default async function ReviewProposal({ params }: { params: Promise<{ id:
                     <textarea name="feedback_to_speaker" rows={4} defaultValue={p.feedback_to_speaker} /></label>
                   <label>Internal notes <span className="opt">organisers only</span>
                     <textarea name="internal_notes" rows={3} defaultValue={p.internal_notes} /></label>
+                  {p.source !== 'app' && (
+                    <label className="check"><input type="checkbox" name="told_before_import" value="1" />
+                      {' '}The speaker was told this decision before this app was used (for example an early acceptance for a visa)</label>
+                  )}
                   <SubmitButton>Save decision</SubmitButton>
                 </form>
               )}
               <p className="small muted">Speakers {conf.decisions_published ? 'can' : 'cannot yet'} see decisions for this conference.</p>
+            </section>
+          )}
+
+          {admin && p.source !== 'app' && p.source_details && (
+            <section className="card">
+              <h2>Imported from Typeform</h2>
+              <dl className="facts">
+                <dt>Response</dt><dd><code>{p.source_details.response_id}</code> ({p.source === 'typeform_sync' ? 'live sync' : 'file import'})</dd>
+                <dt>Terms accepted</dt><dd>{p.source_details.terms_accepted_at ? formatDate(p.source_details.terms_accepted_at) : 'Not recorded'}</dd>
+                <dt>Topics ticked</dt><dd>{p.source_details.topics_ticked.join(', ') || 'None'}</dd>
+              </dl>
+              {p.topic_exception && <p className="small"><strong>No topic yet:</strong> none of the speaker&apos;s topics is on this conference&apos;s list. <Link href="/admin/import/exceptions">Choose one on the topic exceptions list</Link>.</p>}
             </section>
           )}
           {log.length > 0 && (
@@ -136,7 +161,7 @@ export default async function ReviewProposal({ params }: { params: Promise<{ id:
               <h3>History</h3>
               <ul className="timeline">
                 {log.map((h) => (
-                  <li key={h.id}><span className="small muted">{formatDate(h.created_at)}</span> {h.action}{!blind && <> by {h.user_name ?? 'unknown'}</>}
+                  <li key={h.id}><span className="small muted">{formatDate(h.created_at)}</span> {h.action}{!blind && (h.user_name || h.action !== 'imported') && <> by {h.user_name ?? 'unknown'}</>}
                     {h.detail && <span className="small muted"> ({h.detail})</span>}</li>
                 ))}
               </ul>

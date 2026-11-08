@@ -9,10 +9,16 @@ export interface ProfileState { error?: string; ok?: string; values?: Record<str
 export async function saveProfileAction(_prev: ProfileState, form: FormData): Promise<ProfileState> {
   const user = await requireUser('/profile');
   const { values, error } = readProfile(form);
-  if (error) return { error, values };
+  // The form shows every answer as text; gender and MC interest are stored as a choice and a yes/no.
+  const shown: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v === 'string')) as Record<string, string>,
+    gender: values.gender ?? '',
+    mc_interest: values.mc_interest === true ? 'yes' : values.mc_interest === false ? 'no' : '',
+  };
+  if (error) return { error, values: shown };
   await saveProfile(user.id, values);
   revalidatePath('/', 'layout');
-  return { ok: 'Profile saved.', values, at: Date.now() };
+  return { ok: 'Profile saved.', values: shown, at: Date.now() };
 }
 
 export async function changePasswordAction(_prev: ProfileState, form: FormData): Promise<ProfileState> {

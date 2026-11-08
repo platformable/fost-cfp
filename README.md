@@ -150,6 +150,7 @@ Go to **Organise → Integrations** (organisers only). Two things live there:
 | `proposal.updated` | A speaker saves a changed proposal; `data.changed_fields` lists what changed |
 | `proposal.withdrawn` | A speaker withdraws a proposal |
 | `proposal.speaker_confirmed` / `proposal.speaker_declined` | A speaker answers an accepted proposal |
+| `proposal.imported` | A proposal is imported from Typeform (a file import or the live sync); `data.typeform.response_id` says which response. Only sent to endpoints that tick it |
 | `email_link.requested` | A password reset or committee invite link needs emailing; see [Emailed links](#emailed-links-password-resets-and-invites). Only sent to endpoints that tick it |
 | `test.ping` | "Send test event" on an endpoint's page |
 
@@ -165,7 +166,7 @@ Every delivery body looks like this:
 }
 ```
 
-`data.proposal` (or `data.speaker` for speaker events) contains everything n8n usually needs: the talk, the speaker's name, email, job title, organisation, bio, LinkedIn URL, country and headshot, and the conference, including `date_precision` (`day`, or `month` while only the month is known). The status is what the speaker sees, so an unpublished decision shows as `under review`; internal notes, reviews and scores are never sent.
+`data.proposal` (or `data.speaker` for speaker events) contains everything n8n usually needs: the talk, the speaker's name, email, job title, organisation, bio, LinkedIn URL, country, headshot and whether they are open to being an MC (`mc_interest`: `true`, `false` or `null`), and the conference, including `date_precision` (`day`, or `month` while only the month is known). The status is what the speaker sees, so an unpublished decision shows as `under review`; internal notes, reviews and scores are never sent.
 
 Each delivery carries `X-FOST-Event-Id`, `X-FOST-Event-Type`, `X-FOST-Timestamp` (Unix seconds) and `X-FOST-Signature`: `sha256=` followed by the hex HMAC-SHA256 of `<timestamp>.<raw body>`, keyed with the endpoint's signing secret. Only a 2xx answer within 10 seconds counts as delivered; anything else is retried after about 1 min, 5 min, 15 min, 1 h, 3 h, 6 h, 12 h and 24 h, then marked failed. A delivery can arrive more than once, so de-duplicate by `id`.
 
@@ -265,15 +266,21 @@ For `committee_invite`, `conference` is `{ "name": "…", "slug": "…" }`. For 
        subject = 'Please confirm your proposal for FOST';
        lines = ['Thank you for your proposal. It only counts once you confirm it:',
          ...(d.proposals || []).map((p) => `- ${p.title} (${p.conference})`), '', 'Confirm here:', d.url];
+     } else if (d.purpose === 'claim_account' && DateTime.fromISO(d.expires_at).diffNow('days').days > 8) {
+       // Sent to every imported speaker at the cutover (these links last 30 days; others last 7).
+       subject = 'Your FOST call for speakers proposals have moved';
+       lines = ['Thank you for sending a proposal to the FOST call for speakers through our Typeform.',
+         'Your proposals are now in our new call for speakers site. Use this link to set a password, so you can sign in, check them and see decisions:', d.url];
      } else if (d.purpose === 'claim_account') {
        subject = 'Set a password for your FOST Call for Speakers account';
        lines = ['Use this link to set a password, so you can sign in and edit your proposals:', d.url];
      } else {
        continue; // a kind of link this workflow doesn't know yet
      }
+     const unasked = d.purpose === 'claim_account' && subject.includes('moved');
      const text = [`Hello ${name},`, '', ...lines, '',
        `The link works once and expires on ${expires} (UK time).`,
-       "If you didn't ask for this, you can ignore this email.", '', 'FOST Call for Speakers'].join('\n');
+       ...(unasked ? [] : ["If you didn't ask for this, you can ignore this email."]), '', 'FOST Call for Speakers'].join('\n');
      emails.push({ json: { to: d.recipient.email, subject, text } });
    }
    return emails;
@@ -298,8 +305,112 @@ Create a key under Organise → Integrations and send it as `Authorization: Bear
 | `GET /api/v1/proposals?conference=&status=&updated_since=` | Proposals, oldest change first; `status` is what the speaker sees (`under review`, `accepted`, `waitlisted`, `rejected`, `withdrawn`) |
 | `GET /api/v1/proposals/{id}` | One proposal, same shape as in events |
 | `GET /api/v1/speakers/{id}` | One speaker profile, same shape as in events |
+| `POST /api/v1/imports/typeform` | Imports one Typeform response (read-write key); see [Importing from Typeform](#importing-from-typeform) |
 
 Lists return `{ "items": [...], "next_cursor": "..." }` with up to 100 items (`?limit=` for fewer); pass `?cursor=<next_cursor>` for the next page until it is `null`. Errors look like `{ "error": { "code": "not_found", "message": "..." } }` with a matching HTTP status (401 no or bad key, 403 read-only key, 404, 405, 429 with `Retry-After`). API keys do not open the spreadsheet export links, and the export token does not work as an API key.
+
+## Importing from Typeform
+
+Until the app takes over at the cutover, speakers apply through the Typeform call for speakers. Organisers bring those proposals into the app in two ways: a one-off file import, and a live sync from n8n for each new response. **Only import real speaker data on the production site (cfp.joinfost.io), never on dev-cfp;** use made-up data there. The Import page warns you when you are not on production.
+
+Imports are silent: nobody is emailed and the `proposal.submitted` and `speaker.registered` automations do not run. Each response becomes one proposal per conference it ticked, with:
+
+- **The speaker:** found by email, or created as a guest (no password). An existing speaker's details are kept; only empty fields are filled in.
+- **The proposal:** format Talk (25 min), the Typeform submit time, and the first topic the speaker ticked that is on the conference's topic list. It appears to the committee straight away.
+- **Gender and MC interest:** saved on the speaker's profile (see below). "Fermale" and similar one-letter slips are read as Female; anything else not on the list is saved as Other.
+- Sponsoring and APIMasters answers are not imported.
+
+### The file import
+
+1. In Typeform: **Results → Responses → Download as CSV**.
+2. In the app: **Organise → Import**, upload the file (up to 10 MB) and check the preview.
+3. Choose a conference, or **Skip**, for every conference column in the export (for example, skip this year's Paris events). The choices are remembered for the next import and for the live sync.
+4. Check the counts and the answers that could not be matched (countries, genders, LinkedIn addresses), then press **Import**. It all happens in one go, or not at all.
+
+Importing the same response twice does nothing the second time, so a newer export can be imported over an older one.
+
+### Topic exceptions
+
+If a conference has a topic list and none of the speaker's ticked topics is on it, the proposal is imported without a topic and listed under **Organise → Import → Topic exceptions**. For each one, pick one of the conference's topics, add the speaker's topic to the conference's list, or leave it without a topic. Conferences' topic lists are never changed without you choosing to. Conferences without a topic list never have exceptions.
+
+### The live sync from n8n
+
+Each new Typeform response can be sent to the app as soon as it arrives:
+
+1. Create a **read-write** API key under Organise → Integrations.
+2. In n8n, add a **Typeform Trigger** node for the call-for-speakers form and turn **Simplify Answers** off (the response id and submit time are only included then). A Webhook node that Typeform posts to works too.
+3. Add a **Code** node (Language: JavaScript, mode: *Run Once for Each Item*) that builds the request body:
+
+   ```js
+   // Turns a Typeform response into the body for POST /api/v1/imports/typeform.
+   // Works with the Typeform Trigger node (Simplify Answers off) or a Webhook node receiving Typeform's webhook.
+   const r = $json.form_response ?? $json.body?.form_response;
+   if (!r) throw new Error('No form_response: turn off Simplify Answers on the Typeform Trigger node.');
+   const norm = (s) => String(s ?? '').toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim();
+   const fields = r.definition.fields.map((f) => ({ id: f.id, title: norm(f.title), type: f.type }));
+   const answers = Object.fromEntries(r.answers.map((a) => [a.field.id, a]));
+   const at = (i) => (i >= 0 ? answers[fields[i]?.id] : undefined);
+   const index = (test) => fields.findIndex((f) => test(f.title));
+   const text = (a) => (a ? String(a.text ?? a.email ?? a.url ?? a.phone_number ?? a.choice?.label ?? a.choice?.other ?? '') : '');
+   const ticked = (a) => (a?.choices ? [...(a.choices.labels ?? []), ...(a.choices.other ? [a.choices.other] : [])] : a?.choice ? [a.choice.label ?? a.choice.other] : []);
+   // Found by position, like the CSV import: the conferences are the first multiple-choice question,
+   // the topics the first one after "What level of audience…".
+   const level = index((t) => t.includes('level of audience'));
+   const conferences = fields.findIndex((f) => f.type === 'multiple_choice');
+   const topics = fields.findIndex((f, i) => i > level && f.type === 'multiple_choice');
+   const gender = at(index((t) => t.includes('your gender')));
+   const mc = at(index((t) => t.includes('master of ceremony') || t.includes('open to being an mc')));
+   const terms = at(index((t) => t.includes('before submitting')));
+   return {
+     response_id: r.token,
+     submitted_at: r.submitted_at,
+     conferences: ticked(at(conferences)),
+     topics: ticked(at(topics)),
+     first_name: text(at(index((t) => t.includes('your first name')))),
+     last_name: text(at(index((t) => t.includes('your last name')))),
+     email: text(at(index((t) => t.includes('your email')))),
+     job_title: text(at(index((t) => t.includes('job title')))),
+     company: text(at(index((t) => t.includes('company name')))),
+     linkedin: text(at(index((t) => t.includes('linkedin')))),
+     based_in: text(at(index((t) => t.includes('where are you based')))),
+     title: text(at(index((t) => t.includes('title of your talk')))),
+     abstract: text(at(index((t) => t.startsWith('short abstract')))),
+     level: text(at(level)),
+     gender: gender?.choice?.label ?? '',
+     gender_other: gender?.choice?.other ?? '',
+     mc: typeof mc?.boolean === 'boolean' ? mc.boolean : null,
+     terms_accepted: terms ? terms.boolean === true || !!terms.choice || !!terms.choices : false,
+   };
+   ```
+
+   It finds the questions by their wording, and the conference and topic questions by position (the first multiple-choice question, and the first one after "What level of audience…"), like the file import. If the form's wording changes, change the matching text here.
+4. Add an **HTTP Request** node: method `POST`, URL `https://cfp.joinfost.io/api/v1/imports/typeform`, *Header Auth* with `Authorization: Bearer <key>`, body *JSON* `{{ $json }}`.
+
+| Answer | Meaning |
+| --- | --- |
+| `201 {"proposals": [...], "topic_exceptions": [...], "unmapped": [...]}` | Imported. `topic_exceptions` lists proposals waiting for a topic |
+| `200 {"already_imported": true, "proposals": [...]}` | This response was imported before; nothing changed |
+| `200 {"skipped": "no mapped conferences", "unmapped": [...]}` | Every conference it ticked is skipped or not mapped yet. `unmapped` lists conference names with no choice: map them by uploading an export, then send the response again |
+| `400 invalid_request` | The body is missing the response id, submit time, email or talk title |
+
+### Gender and MC interest
+
+Speakers can fill in "What is your gender?" and "Would you be open to being an MC?" on their profile; both are optional, and imports fill them from Typeform.
+
+- **Gender** is seen only by the speaker and organisers (Organise → People, and the proposal page for organisers). It is never sent to n8n, the API or the spreadsheet exports, and changing only the gender records no event.
+- **MC interest** is sent to n8n as `mc_interest` on every speaker and proposal event, and `speaker.profile_updated` lists `mc_interest` in `changed_fields` when it changes, so n8n can keep the overview sheet's MC tab and the MC email thread up to date. It is also the `mc_interest` column of the speakers export and `speaker_mc_interest` in the submissions export.
+
+Use `proposal.imported` (tick it on an endpoint) for anything n8n should do for imported proposals, such as the LinkedIn to-dos; existing endpoints do not receive it until you tick it.
+
+### Visa letters already promised
+
+Some speakers were told they were accepted before the app was used, for example for a visa letter. On an imported proposal's decision form, tick **The speaker was told before this app was used** when saving the decision. The history then says so, so nobody tells them again.
+
+### Claim emails at the cutover
+
+When the app takes over, go to **Organise → Import → Claim-your-account emails** and press **Email claim links**. Every imported guest who has not set a password is sent a link (through the `claim_account` branch of your `email_link.requested` workflow) to set one and see their proposals. These links last 30 days; the "Forgot your password?" claim link still lasts 7 days. Guests already sent one are skipped unless you tick **Also resend**.
+
+The `Write email` code above gives these 30-day links their own subject and wording. If you pasted that code into n8n before this section existed, paste it again before the cutover.
 
 ## Planning changes with OpenSpec
 
