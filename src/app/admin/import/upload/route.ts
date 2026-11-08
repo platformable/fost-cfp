@@ -3,21 +3,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentUser } from '@/lib/session';
 import { createBatch } from '@/lib/imports';
-import { baseUrl } from '@/lib/links';
+import { fromThisSite } from '@/lib/same-site';
 
 export const dynamic = 'force-dynamic';
 const MAX_BYTES = 10 * 1024 * 1024;
+// Relative redirects, so they work whatever BASE_URL is set to.
+const see = (path: string) => new NextResponse(null, { status: 303, headers: { Location: path } });
 
 export async function POST(req: NextRequest) {
   // Only accept uploads posted from this site's own page (server actions do this check for themselves).
-  const origin = req.headers.get('origin');
-  if (origin && origin !== new URL(baseUrl()).origin && origin !== req.nextUrl.origin) {
-    return new NextResponse('Forbidden', { status: 403 });
+  if (!fromThisSite(req.headers)) {
+    return new NextResponse('This upload did not come from the Import page. Go back to Organise → Import and try again.', { status: 403 });
   }
   const user = await currentUser();
-  if (!user) return NextResponse.redirect(new URL('/login?next=/admin/import', baseUrl()), 303);
-  if (user.role !== 'admin') return NextResponse.redirect(new URL('/forbidden', baseUrl()), 303);
-  const back = (msg: string) => NextResponse.redirect(new URL(`/admin/import?error=${encodeURIComponent(msg)}`, baseUrl()), 303);
+  if (!user) return see('/login?next=/admin/import');
+  if (user.role !== 'admin') return see('/forbidden');
+  const back = (msg: string) => see(`/admin/import?error=${encodeURIComponent(msg)}`);
   if (Number(req.headers.get('content-length') ?? 0) > MAX_BYTES + 100_000) return back('The file is larger than 10 MB.');
   let file: File | null = null;
   try {
@@ -30,5 +31,5 @@ export async function POST(req: NextRequest) {
   if (!file || !file.size) return back('Choose the Typeform CSV export to upload.');
   if (file.size > MAX_BYTES) return back('The file is larger than 10 MB.');
   const id = await createBatch(file.name, await file.text(), user.id);
-  return NextResponse.redirect(new URL(`/admin/import/${id}`, baseUrl()), 303);
+  return see(`/admin/import/${id}`);
 }
