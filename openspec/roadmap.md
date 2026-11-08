@@ -32,12 +32,13 @@ The app becomes the system of record for a speaker's whole relationship with FOS
             4  add-overview-sheet-sync: conference overview Google Sheet <-> app
  Dec 2026   5  add-staged-decisions: flexible outcome waves, cancellations, final-review alert
             6  add-proposal-groups: same-speaker groups, vendor and sponsor rules, CMO outreach via Pipedrive
+            7  add-speaker-agreements: code of conduct + AI consent once per person, reminders every 3 days
  mid-Dec    cutover: claim-your-account emails, Typeform off, CFP links point to the app,
             TEST_ONLY = [] in n8n's "Write email", automations on, dev-cfp becomes the test site
  Jan 2027   committee reviews and decides in the app (and the overview sheet)
 ```
 
-Changes 5 and 6 may be built in either order; both must exist before reviews start in January.
+Changes 5 and 6 may be built in either order; both must exist before reviews start in January. Change 7 must exist before the first acceptance letters (T-3 wave).
 
 ## Planned changes, in build order
 
@@ -48,14 +49,15 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Shipped and archived (7 Nov 2026) |
 | 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Shipped and archived (6 Nov 2026) |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Shipped and archived (7 Nov 2026) |
-| 3b | `import-existing-proposals` | Bulk upload of the Typeform CFPs (preview before saving) and a write endpoint so n8n adds each new Typeform response as it arrives; people become guests whose proposals already count; known emails attach to their account; organisers mark the early (visa) approvals as accepted and already told; `proposal.imported` event (not `proposal.submitted`) | 1, 3 | Planned for November 2026 |
+| 3b | `import-existing-proposals` | Bulk upload of the Typeform CFPs (preview before saving) and a write endpoint so n8n adds each new Typeform response as it arrives; people become guests whose proposals already count; known emails attach to their account; organisers mark the early (visa) approvals as accepted and already told; `proposal.imported` event (not `proposal.submitted`) | 1, 3 | Proposed (7 Nov 2026) |
 | 4 | `add-overview-sheet-sync` | Each conference's overview Google Sheet: a "CFPs received" tab (every proposal and its outcome) and an accepted-speakers tab with email-progress columns; the Decision column edits the app through a decision API; `proposal.decided` event; overview sheet link per conference; emails sent by n8n recorded in the app | 1, 3b | Not started |
-| 5 | `add-staged-decisions` | One "send outcomes" action that writes only to people whose situation changed; speakers see an outcome once told; organisers record cancellations on a speaker's behalf; "slot freed" alert listing the waitlist; T-1 final-review alert; replaces the single "publish decisions" switch | 1, 4 | Not started |
+| 5 | `add-staged-decisions` | One "send outcomes" action that writes only to people whose situation changed; a "Speaker registration details" field per conference, emailed by n8n when a speaker confirms; speakers see an outcome once told; organisers record cancellations on a speaker's behalf; "slot freed" alert listing the waitlist; T-1 final-review alert; replaces the single "publish decisions" switch | 1, 4 | Not started |
 | 6 | `add-proposal-groups` | Same-speaker groups; vendor matching against the API & AI landscape database; confirmed sponsors read from the overview sheet's Sponsors tab; automatic waitlisting with a reason for vendor and sponsor proposals; CMO outreach in Pipedrive with a daily "drafts to send" email; sponsored-session mark | 1, 4, 5 | Not started |
-| 7 | `add-mini-conference-committees` | Topics become mini-conferences (e.g. GreenIO) with their own committee; reviewers see only their topics | none | Not started |
-| 8 | `add-speaker-record` | Consent once per person (Formbricks via n8n write-back), sponsor/VIP lead flags and research notes, organiser notes about a speaker | 1 | Not started |
-| 9 | `add-speaker-assets` | Slide uploads, speaker cards, photos with proposed captions, transcripts, session date and time, attendance import | 1; file storage | Not started |
-| 10 | `add-program-dashboard` | Per conference: dates 80% and 90% of the program filled, gender breakdown, most popular talks, % consent done, % slides uploaded | 7, 8, 9 | Not started |
+| 7 | `add-speaker-agreements` | Code of conduct (Yes/No, link to beat.joinfost.io/code-of-conduct) and AI consent (questions from the Typeform consent form), once per person, recorded in the app with date and version; a "Speaker agreements" profile section and an emailed-link page for guests; reminders every 3 days while outstanding; import of the existing Typeform consent forms | 2, 5 | Not started |
+| 8 | `add-mini-conference-committees` | Topics become mini-conferences (e.g. GreenIO) with their own committee; reviewers see only their topics | none | Not started |
+| 9 | `add-speaker-record` | Sponsor/VIP lead flags and research notes, organiser notes about a speaker | 1 | Not started |
+| 10 | `add-speaker-assets` | Slide uploads, speaker cards, photos with proposed captions, transcripts, session date and time, attendance import | 1; file storage | Not started |
+| 11 | `add-program-dashboard` | Per conference: dates 80% and 90% of the program filled, gender breakdown, most popular talks, % consent done, % slides uploaded | 8, 9, 10 | Not started |
 
 ## Decisions agreed
 
@@ -65,7 +67,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **The app is the record; spreadsheets are windows onto it.** Where a sheet can change something, it goes through the app's API, and the app's answer is written back.
 - **Pipedrive is Mark's personal tool.** n8n keeps it up to date and may read it (for example to find a CMO); nothing every organiser needs lives only in Pipedrive.
 - **LinkedIn connection to-dos are Mark's only** and stay in Pipedrive. LinkedIn connections cannot be automated.
-- **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 9).
+- **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 10).
 - **Production lives at a joinfost.io subdomain (for example cfp.joinfost.io) with its own database**, set up before real speaker data is imported. dev-cfp.platformable.com stays the test site and never holds real speaker data. Each environment has its own n8n endpoint, signing secret and API key.
 - **Every OpenSpec design includes a JSON Schema of its data model** (rule in `openspec/config.yaml`).
 
@@ -119,8 +121,16 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **Guests are people without passwords.** Same consent and automations as everyone; read-only proposals; claim later by emailed link.
 - **A guest proposal counts only once its emailed confirmation link is clicked.** Until then: no automations; unconfirmed proposals expire after 6 months.
 - **One emailed single-use link mechanism** (via n8n) covers password reset, claiming guest accounts, guest confirmations and committee invites, with an organiser "copy link" fallback.
-- **Consent form moves from Typeform to Formbricks**, once per person across all conferences.
-- **Gender question wording:** "What is your gender?" with the options Female, Male, Prefer not to say, Other (change 10).
+- **Speaker agreements live in the app, once per person** (change 7), replacing the earlier Formbricks plan:
+  - **Code of conduct:** "Do you accept the FOST code of conduct (https://beat.joinfost.io/code-of-conduct)?" Yes/No. Only Yes completes it; a No is flagged to organisers. The app records the date and a version label, so a substantially changed text can be asked again.
+  - **AI consent**, from the Typeform consent form: (1) discoverability, Allowed / Prohibited; (2) remixing into new formats without modification or rephrasing, Allowed / Prohibited; (3) "Permission for use of AI to modify your FOST content", any of: first-person articles under my byline, third-person articles not attributed to me, I review before publication, or "PROHIBITED: my content may not be modified by AI" (which excludes the others). Prohibited wording follows the allowed wording, e.g. "PROHIBITED: AI may not be used to process my content for discoverability".
+  - **Speakers with an account** complete them on their profile; **guests** use an emailed single-use link (no sign-in needed), with an optional "also set a password".
+  - **The acceptance letter asks for them; reminders every 3 days** (n8n's daily check, with a fresh link each time) until both are done, the speaker cancels or the conference starts. They never block confirming attendance or receiving registration details.
+  - **The existing Typeform consent forms (41)** are imported by email, keeping their dates and marked "from Typeform"; the consent form had no code of conduct question, so those speakers are still asked to accept it.
+- **Registration details on confirmation** (change 5): each conference has a "Speaker registration details" field (link, code, instructions); n8n emails it when a speaker confirms. Registration itself stays manual (ticked by hand on the overview sheet) until the ticketing system's API can be used.
+- **Gender and MC interest are optional profile fields** (change 3b). Gender ("What is your gender?": Female, Male, Prefer not to say, Other) is seen only by the speaker and organisers and never leaves the app; the dashboard (change 11) decides whether totals are shown. MC interest goes to n8n (`mc_interest`), which fills an MC tab on the overview sheet and starts an MC email thread (change 4).
+- **Typeform's sponsoring and APIMasters questions are not imported.** Sponsorship comes from vendor outreach (change 6); APIMasters is not used in any process yet.
+- **Topics that cannot be matched on import go on a topic exceptions list** for an organiser to resolve; conferences' topic lists are never changed automatically.
 
 ### Conferences
 
@@ -141,8 +151,9 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | Where the API & AI landscape database lives and its column names (name, website or domain, vendor or not) | 6 |
 | Whether the first wave skips proposals waitlisted for a "sponsorship conversation", so those speakers hear nothing until it ends | 5, 6 |
 | How talks that sponsors buy outside the CFP are added to the program | 6 |
-| Size limits for decks and photos on OVHcloud Object Storage | 9 |
-| Speaker card design and what it shows | 9 |
-| Attendance spreadsheet columns | 9 |
-| Who may see a speaker's gender answer, and whether "Other" has a free-text box | 10 |
-| How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 10 |
+| A CSV export of the existing Typeform consent forms (to map at build time) | 7 |
+| Size limits for decks and photos on OVHcloud Object Storage | 10 |
+| Speaker card design and what it shows | 10 |
+| Attendance spreadsheet columns | 10 |
+| Who may see a speaker's gender answer, and whether "Other" has a free-text box | 11 |
+| How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 11 |
