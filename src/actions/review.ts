@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getConference, isReviewerFor } from '@/lib/conferences';
 import { DECISIONS, RECOMMENDATIONS, bulkDecide, decide, getProposal, saveReview } from '@/lib/proposals';
 import { flash, requireRole } from '@/lib/session';
+import { recordToldBeforeImport } from '@/lib/imports';
 
 async function reviewable(id: number, roles: ('reviewer' | 'admin')[] = ['reviewer', 'admin']) {
   const user = await requireRole(roles, `/review/proposals/${id}`);
@@ -52,6 +53,8 @@ export async function decisionAction(id: number, form: FormData): Promise<void> 
     extra.topic = topic;
   }
   await decide(p, user.id, status, extra);
+  // Early decisions (for example visa acceptances) that the speaker already knows about before the app.
+  if (form.get('told_before_import') === '1' && p.source !== 'app') await recordToldBeforeImport(p.id, user.id);
   await flash('success', 'Decision saved.');
   redirect(`/review/proposals/${id}`);
 }

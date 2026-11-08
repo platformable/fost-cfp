@@ -46,6 +46,10 @@ export interface IssueOptions {
   proposals?: { title: string; conference: string }[] | null;
   // false keeps earlier unused links working (a guest's older confirmation links still confirm everything).
   supersede?: boolean;
+  // A different lifetime from the purpose's default (bulk claim emails at cutover last 30 days).
+  lifetimeMs?: number;
+  // Marks links sent by a bulk action, e.g. 'import-claim'.
+  batch?: string | null;
 }
 
 // Issues a link for `user`, inside the caller's transaction. Earlier unused links for the same
@@ -54,9 +58,9 @@ export async function issueLink(db: pg.PoolClient, user: Pick<User, 'id' | 'name
   if (opts.supersede !== false) await query(`UPDATE email_links SET used_at = now()
                WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now()`, [user.id, opts.purpose], db);
   const token = crypto.randomBytes(32).toString('base64url');
-  const expires = new Date(Date.now() + LINK_LIFETIME_MS[opts.purpose]);
-  await query(`INSERT INTO email_links (user_id, purpose, token_hash, expires_at, created_by) VALUES ($1, $2, $3, $4, $5)`,
-    [user.id, opts.purpose, sha256(token), expires, opts.createdBy ?? null], db);
+  const expires = new Date(Date.now() + (opts.lifetimeMs ?? LINK_LIFETIME_MS[opts.purpose]));
+  await query(`INSERT INTO email_links (user_id, purpose, token_hash, expires_at, created_by, batch) VALUES ($1, $2, $3, $4, $5, $6)`,
+    [user.id, opts.purpose, sha256(token), expires, opts.createdBy ?? null, opts.batch ?? null], db);
   const url = linkUrl(token);
   const expiresAt = expires.toISOString().replace(/\.\d{3}Z$/, 'Z');
   if (opts.email) {

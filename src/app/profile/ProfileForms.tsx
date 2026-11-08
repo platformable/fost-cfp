@@ -36,6 +36,22 @@ export function ProfileForm({ profile, countries }: { profile: Profile; countrie
       </div>
       <label>Headshot URL <span className="opt">Optional. If you leave this blank, we&apos;ll use the photo on your LinkedIn profile.</span>
         <input name="photo_url" defaultValue={v.photo_url} placeholder="https://…/photo.jpg" /></label>
+      <fieldset className="conf-picks">
+        <legend>More about you <span className="opt">(optional)</span></legend>
+        <div className="field-row">
+          <label>What is your gender? <span className="opt">Only you and the FOST organisers can see this.</span>
+            <select name="gender" defaultValue={v.gender}>
+              <option value="">Not answered</option>
+              {['Female', 'Male', 'Prefer not to say', 'Other'].map((g) => <option key={g}>{g}</option>)}
+            </select></label>
+          <label>Would you be open to being an MC (Master of Ceremonies) at a FOST conference?
+            <select name="mc_interest" defaultValue={v.mc_interest}>
+              <option value="">Not answered</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select></label>
+        </div>
+      </fieldset>
       <SubmitButton>Save profile</SubmitButton>
     </form>
   );

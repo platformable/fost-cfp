@@ -6,7 +6,11 @@ import { isCountryCode } from './countries';
 import { safeUrl } from './format';
 
 export const PROFILE_FIELDS = ['first_name', 'last_name', 'organization', 'job_title', 'bio', 'linkedin_profile_url', 'phone', 'country', 'photo_url'] as const;
-export type ProfileValues = Record<(typeof PROFILE_FIELDS)[number], string>;
+// Optional answers kept apart from PROFILE_FIELDS: gender is seen only by the speaker and organisers
+// and never leaves the app; mc_interest goes to automations. undefined = not on the form, leave as is.
+export const GENDERS = ['Female', 'Male', 'Prefer not to say', 'Other'] as const;
+export type Gender = (typeof GENDERS)[number];
+export type ProfileValues = Record<(typeof PROFILE_FIELDS)[number], string> & { gender?: Gender | null; mc_interest?: boolean | null };
 
 export interface RegisterValues { first_name: string; last_name: string; email: string; organization: string }
 
@@ -49,8 +53,17 @@ export function normalizeLinkedIn(value: string): string | null {
 }
 
 export function readProfile(form: FormData): { values: ProfileValues; error: string | null } {
-  const values = Object.fromEntries(PROFILE_FIELDS.map((f) => [f, String(form.get(f) ?? '').trim()])) as ProfileValues;
+  const values = Object.fromEntries(PROFILE_FIELDS.map((f) => [f, String(form.get(f) ?? '').trim()])) as unknown as ProfileValues;
   let error: string | null = null;
+  if (form.has('gender')) {
+    const g = String(form.get('gender') ?? '');
+    if (g && !(GENDERS as readonly string[]).includes(g)) error = 'Please choose an answer from the list.';
+    values.gender = (g || null) as Gender | null;
+  }
+  if (form.has('mc_interest')) {
+    const m = String(form.get('mc_interest') ?? '');
+    values.mc_interest = m === 'yes' ? true : m === 'no' ? false : null;
+  }
   if (!values.first_name) error = 'First name is required.';
   else if (values.country && !isCountryCode(values.country)) error = 'Please choose a country from the list.';
   else if (values.linkedin_profile_url) {
@@ -62,18 +75,31 @@ export function readProfile(form: FormData): { values: ProfileValues; error: str
 }
 
 // Returns the fields that changed; saving an unchanged profile writes nothing and records no event.
+// Gender is saved but never listed or announced: changing only the gender records no event.
 export async function saveProfile(userId: number, values: ProfileValues): Promise<string[]> {
   return transaction(async (db) => {
-    const before = await one<ProfileValues>(`SELECT ${PROFILE_FIELDS.join(', ')} FROM users WHERE id = $1 FOR UPDATE`, [userId], db);
-    const changed = PROFILE_FIELDS.filter((f) => String(values[f] ?? '') !== String(before?.[f] ?? ''));
+    const before = await one<Record<string, unknown>>(`SELECT ${PROFILE_FIELDS.join(', ')}, gender, mc_interest FROM users WHERE id = $1 FOR UPDATE`, [userId], db);
+    const changed: string[] = PROFILE_FIELDS.filter((f) => String(values[f] ?? '') !== String(before?.[f] ?? ''));
+    if (values.mc_interest !== undefined && (values.mc_interest ?? null) !== (before?.mc_interest ?? null)) changed.push('mc_interest');
+    const genderChanged = values.gender !== undefined && (values.gender ?? null) !== (before?.gender ?? null);
+    if (!changed.length && !genderChanged) return [];
+    const sets = PROFILE_FIELDS.map((f, i) => `${f} = $${i + 1}`);
+    const params: unknown[] = PROFILE_FIELDS.map((f) => values[f]);
+    if (values.gender !== undefined) { params.push(values.gender); sets.push(`gender = $${params.length}`); }
+    if (values.mc_interest !== undefined) { params.push(values.mc_interest); sets.push(`mc_interest = $${params.length}`); }
+    params.push(userId);
+    await query(`UPDATE users SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length}`, params, db);
     if (!changed.length) return [];
-    await query(`UPDATE users SET ${PROFILE_FIELDS.map((f, i) => `${f} = $${i + 1}`).join(', ')}, updated_at = now()
-                 WHERE id = $${PROFILE_FIELDS.length + 1}`, [...PROFILE_FIELDS.map((f) => values[f]), userId], db);
     // Touch the speaker's proposals so "updated since" exports pick up the new speaker details.
     await query('UPDATE proposals SET updated_at = now() WHERE speaker_id = $1', [userId], db);
     await recordSpeakerEvent(db, 'speaker.profile_updated', userId, { changed_fields: changed });
     return changed;
   });
+}
+
+// Answers only organisers see (never sent to reviewers, automations or exports).
+export async function speakerOrganiserDetails(userId: number): Promise<{ gender: Gender | null; mc_interest: boolean | null } | null> {
+  return one('SELECT gender, mc_interest FROM users WHERE id = $1', [userId]);
 }
 
 export async function changePassword(user: User, current: string, next: string): Promise<string | null> {

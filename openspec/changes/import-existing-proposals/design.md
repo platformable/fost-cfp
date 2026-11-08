@@ -58,7 +58,7 @@ A small parser that handles quotes, doubled quotes and line breaks inside quotes
 
 - The file is uploaded once and stored in a new `import_batches` row, with the text, who uploaded it, when, and the status.
 - The preview page `/admin/import/<batch id>` parses it again. "Import" runs the batch.
-- This avoids sending a large file through two form posts. Server actions are limited to 1 MB by default, and that limit is raised to 10 MB for this upload only.
+- This avoids sending a large file through two form posts. Server actions are limited to 1 MB by default, so the upload goes to its own route handler, `/admin/import/upload`, which accepts up to 10 MB. It checks the request comes from the site's own pages and from an organiser. The server-action limit stays as it is.
 - Batches keep a record of each import and its counts. Their text is cleared once imported.
 
 ### 3. Conference mapping in settings

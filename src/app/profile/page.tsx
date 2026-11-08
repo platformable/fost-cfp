@@ -7,7 +7,11 @@ export const metadata = { title: 'Your speaker profile' };
 
 export default async function ProfilePage() {
   const user = await requireUser('/profile');
-  const profile = Object.fromEntries(PROFILE_FIELDS.map((f) => [f, user[f] ?? '']));
+  const profile = {
+    ...Object.fromEntries(PROFILE_FIELDS.map((f) => [f, user[f] ?? ''])),
+    gender: user.gender ?? '',
+    mc_interest: user.mc_interest === true ? 'yes' : user.mc_interest === false ? 'no' : '',
+  };
   return (
     <>
       <h1>Your speaker profile</h1>

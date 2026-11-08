@@ -1,6 +1,7 @@
 // The /api/v1/ read endpoints. Every object comes from the payload builder in payloads.ts, so API
 // reads have the same shape as webhook payloads. Route files under src/app/api/v1/ call these.
-import { ApiError, apiRoute, decodeCursor, encodeCursor, isoTime, notFound, pageSize, wholeNumber } from './api';
+import { ApiError, apiRoute, Created, decodeCursor, encodeCursor, isoTime, notFound, pageSize, wholeNumber } from './api';
+import { importFromApi, readApiBody } from './imports';
 import {
   committeePayload, conferencePayloadByIdOrSlug, listConferencePayloads, listProposalPayloads,
   proposalPayloadById, speakerPayloadById, VISIBLE_STATUSES,
@@ -81,3 +82,26 @@ export const getSpeaker: Handler = async (_req, { id }) => {
 };
 
 export const unknownPath: Handler = async () => { throw new ApiError('not_found', 'There is no API endpoint at this address.'); };
+
+// POST /api/v1/imports/typeform: the live sync from n8n (read-write key). Same rules as a file import.
+export function typeformImportRoute() {
+  const notGet: Handler = async () => { throw new ApiError('method_not_allowed', 'Send a Typeform response with POST.'); };
+  const run = (req: Request, h: Handler) => apiRoute(req, async () => h(req, {}));
+  const post: Handler = async (req) => {
+    let body: unknown;
+    try { body = await req.json(); } catch { throw new ApiError('invalid_request', 'The body must be JSON.'); }
+    const { response, errors } = readApiBody(body);
+    if (!response) throw new ApiError('invalid_request', errors.join(' '));
+    const result = await importFromApi(response);
+    if (result.already_imported) return { already_imported: true, proposals: result.proposals };
+    if (result.skipped) return { skipped: result.skipped, unmapped: result.unmapped };
+    return new Created({ proposals: result.proposals, topic_exceptions: result.topic_exceptions, unmapped: result.unmapped });
+  };
+  return {
+    POST: (req: Request) => run(req, post),
+    GET: (req: Request) => run(req, notGet),
+    PUT: (req: Request) => run(req, notGet),
+    PATCH: (req: Request) => run(req, notGet),
+    DELETE: (req: Request) => run(req, notGet),
+  };
+}

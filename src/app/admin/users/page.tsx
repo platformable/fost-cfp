@@ -29,7 +29,10 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td><strong>{u.name}</strong>{!u.password_hash && u.role === 'speaker' && <> <span className="badge badge-paused">Guest</span></>}</td>
+                <td><strong>{u.name}</strong>{!u.password_hash && u.role === 'speaker' && <> <span className="badge badge-paused">Guest</span></>}
+                  {(u.gender || u.mc_interest !== null) && (
+                    <><br /><span className="small muted">{[u.gender, u.mc_interest !== null && `MC: ${u.mc_interest ? 'yes' : 'no'}`].filter(Boolean).join(' · ')}</span></>
+                  )}</td>
                 <td><a href={`mailto:${u.email}`}>{u.email}</a></td>
                 <td>{u.organization}</td>
                 <td className="num">{u.proposal_count}{u.awaiting_count > 0 && <><br /><span className="small muted nowrap">+{u.awaiting_count} awaiting confirmation</span><br /><CopyLink action={copyConfirmationLinkAction.bind(null, u.id)} name={u.name} label="Copy confirmation link" note="Works once, for 6 months." /></>}</td>
