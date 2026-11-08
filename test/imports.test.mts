@@ -339,3 +339,16 @@ describe('the proposal.imported event', () => {
     assert.ok(old.id && res.proposals.length === 2);
   });
 });
+
+describe('the upload comes from this site', () => {
+  test('Origin is compared with the host the browser sent the request to', async () => {
+    const { fromThisSite } = await import('../src/lib/same-site');
+    const h = (o: Record<string, string>) => new Headers(o);
+    // Behind a reverse proxy: Next.js listens on localhost, the proxy forwards the public host.
+    assert.equal(fromThisSite(h({ origin: 'https://dev-cfp.platformable.com', host: 'localhost:3000', 'x-forwarded-host': 'dev-cfp.platformable.com' })), true);
+    assert.equal(fromThisSite(h({ origin: 'https://cfp.joinfost.io', host: 'cfp.joinfost.io' })), true);
+    assert.equal(fromThisSite(h({ host: 'cfp.joinfost.io' })), true, 'no Origin header');
+    assert.equal(fromThisSite(h({ origin: 'https://evil.example', host: 'localhost:3000', 'x-forwarded-host': 'dev-cfp.platformable.com' })), false);
+    assert.equal(fromThisSite(h({ origin: 'null', host: 'cfp.joinfost.io' })), false);
+  });
+});
