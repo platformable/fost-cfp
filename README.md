@@ -54,6 +54,8 @@ node .next/standalone/server.js
 
 Serve it over HTTPS. Session cookies are marked `Secure` when `NODE_ENV=production`.
 
+Setting up the permanent production site (cfp.joinfost.io)? Follow [docs/production-setup.md](docs/production-setup.md).
+
 ### The webhook worker (second process)
 
 Webhook events are sent by a separate process, not the web server. Run it next to the web server, with the same `DATABASE_URL`, from a full checkout of this repository (`npm ci` installs what it needs; the `.next/standalone` folder alone is not enough):
