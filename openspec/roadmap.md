@@ -67,7 +67,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **The app is the record; spreadsheets are windows onto it.** Where a sheet can change something, it goes through the app's API, and the app's answer is written back.
 - **Pipedrive is Mark's personal tool.** n8n keeps it up to date and may read it (for example to find a CMO); nothing every organiser needs lives only in Pipedrive.
 - **LinkedIn connection to-dos are Mark's only** and stay in Pipedrive. LinkedIn connections cannot be automated.
-- **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 10).
+- **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 10). **Upload limits:** 3 MB per photo and 6 MB per slide deck (agreed 9 Nov 2026).
 - **Production lives at a joinfost.io subdomain (for example cfp.joinfost.io) with its own database**, set up before real speaker data is imported. dev-cfp.platformable.com stays the test site and never holds real speaker data. Each environment has its own n8n endpoint, signing secret and API key.
 - **Every OpenSpec design includes a JSON Schema of its data model** (rule in `openspec/config.yaml`).
 
@@ -152,7 +152,6 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | Whether the first wave skips proposals waitlisted for a "sponsorship conversation", so those speakers hear nothing until it ends | 5, 6 |
 | How talks that sponsors buy outside the CFP are added to the program | 6 |
 | A CSV export of the existing Typeform consent forms (to map at build time) | 7 |
-| Size limits for decks and photos on OVHcloud Object Storage | 10 |
 | Speaker card design and what it shows | 10 |
 | Attendance spreadsheet columns | 10 |
 | Who may see a speaker's gender answer, and whether "Other" has a free-text box | 11 |
