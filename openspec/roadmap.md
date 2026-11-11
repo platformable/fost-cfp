@@ -33,6 +33,8 @@ The app becomes the system of record for a speaker's whole relationship with FOS
  Dec 2026   5  add-staged-decisions: flexible outcome waves, cancellations, final-review alert
             6  add-proposal-groups: same-speaker groups, vendor and sponsor rules, CMO outreach via Pipedrive
             7  add-speaker-agreements: code of conduct + AI consent once per person, reminders every 3 days
+            12 explore-invited-speakers: explore and design before the end of December, so FOST New York
+               and FOST Singapore speaker outreach runs from this app from mid January 2027
  mid-Dec    cutover: claim-your-account emails, Typeform off, CFP links point to the app,
             TEST_ONLY = [] in n8n's "Write email", automations on, dev-cfp becomes the test site
  Jan 2027   committee reviews and decides in the app (and the overview sheet)
@@ -58,6 +60,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | 9 | `add-speaker-record` | Sponsor/VIP lead flags and research notes, organiser notes about a speaker | 1 | Not started |
 | 10 | `add-speaker-assets` | Slide uploads, speaker cards, photos with proposed captions, transcripts, session date and time, attendance import | 1; file storage | Not started |
 | 11 | `add-program-dashboard` | Per conference: dates 80% and 90% of the program filled, gender breakdown, most popular talks, % consent done, % slides uploaded | 8, 9, 10 | Not started |
+| 12 | `explore-invited-speakers` | Explore how speakers FOST invites, not only those who answer the call, are brought into the app, so speaker outreach for FOST New York and FOST Singapore runs from here. Scope is decided when the change is explored | to be explored | Not started; explore and design before the end of December 2026 |
 
 ## Decisions agreed
 
@@ -70,6 +73,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 10). **Upload limits:** 3 MB per photo and 6 MB per slide deck (agreed 9 Nov 2026).
 - **Production lives at a joinfost.io subdomain (for example cfp.joinfost.io) with its own database**, set up before real speaker data is imported. dev-cfp.platformable.com stays the test site and never holds real speaker data. Each environment has its own n8n endpoint, signing secret and API key.
 - **Every OpenSpec design includes a JSON Schema of its data model** (rule in `openspec/config.yaml`).
+- **Speaker outreach moves into this project** (agreed 11 Nov 2026). FOST Paris speaker outreach ran from a local tool (`~/test`) and closed on 4 November 2026; that tool is being archived. Outreach to invited speakers for FOST New York and FOST Singapore (from mid January 2027) runs from this app, through change 12.
 
 ### Intake and the move from Typeform (change 3b, cutover)
 
