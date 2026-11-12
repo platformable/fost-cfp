@@ -36,6 +36,7 @@ The app becomes the system of record for a speaker's whole relationship with FOS
             7  add-speaker-agreements: code of conduct + AI consent once per person, reminders every 3 days
             12 explore-invited-speakers: explore and design before the end of December, so FOST New York
                and FOST Singapore speaker outreach runs from this app from mid January 2027
+            3c add-bluesky-profile: optional Bluesky field next to LinkedIn, before the cutover
  mid-Dec    cutover: claim-your-account emails, Typeform off, CFP links point to the app,
             TEST_ONLY = [] in n8n's "Write email", automations on, dev-cfp becomes the test site
  Jan 2027   committee reviews and decides in the app (and the overview sheet)
@@ -53,6 +54,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Shipped and archived (6 Nov 2026) |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Shipped and archived (7 Nov 2026) |
 | 3b | `import-existing-proposals` | Bulk upload of the Typeform CFPs (preview before saving) and a write endpoint so n8n adds each new Typeform response as it arrives; people become guests whose proposals already count; known emails attach to their account; organisers mark the early (visa) approvals as accepted and already told; `proposal.imported` event (not `proposal.submitted`) | 1, 3 | Shipped (8 Nov 2026); archive once running in production |
+| 3c | `add-bluesky-profile` | Optional Bluesky profile on the speaker profile, next to LinkedIn: accepts a handle (`@name.bsky.social`, custom-domain handles) or a `https://bsky.app/profile/...` address and stores the address; in speaker payloads, the API and as a new last column of the speakers and submissions exports | none | Not started; build before the mid-December cutover |
 | 4 | `add-overview-sheet-sync` | Each conference's overview Google Sheet: a "CFPs received" tab (every proposal and its outcome) and an accepted-speakers tab with email-progress columns; the Decision column edits the app through a decision API; `proposal.decided` event; overview sheet link per conference; emails sent by n8n recorded in the app | 1, 3b | Not started |
 | 5 | `add-staged-decisions` | One "send outcomes" action that writes only to people whose situation changed; a "Speaker registration details" field per conference, emailed by n8n when a speaker confirms; speakers see an outcome once told; organisers record cancellations on a speaker's behalf; "slot freed" alert listing the waitlist; T-1 final-review alert; replaces the single "publish decisions" switch | 1, 4 | Not started |
 | 6 | `add-proposal-groups` | Same-speaker groups; vendor matching against the API & AI landscape database; confirmed sponsors read from the overview sheet's Sponsors tab; automatic waitlisting with a reason for vendor and sponsor proposals; CMO outreach in Pipedrive with a daily "drafts to send" email; sponsored-session mark | 1, 4, 5 | Not started |
@@ -65,6 +67,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | 10d | `add-after-event-follow-up` | Thank-you emails to speakers and MCs within a few days, with their photos and audience figures; transcripts received from the Pulse pipeline through the API, then a "your transcript" email | 10b, 10c, 7 | Not started |
 | 11 | `add-program-dashboard` | Per conference: dates 80% and 90% of the program filled, gender breakdown, most popular talks, % consent done, % slides uploaded | 8, 9, 10a, 10b | Not started |
 | 12 | `explore-invited-speakers` | Explore how speakers FOST invites, not only those who answer the call, are brought into the app, so speaker outreach for FOST New York and FOST Singapore runs from here. Scope is decided when the change is explored | to be explored | Not started; explore and design before the end of December 2026 |
+| 13 | `add-fostbeat-author-handoff` | A button on the speaker profile sets up their FOSTBeat author (creator) profile in Strapi from the app (headshot, bio, job title, organisation, LinkedIn, Bluesky); when their transcript arrives, a draft article is created for them in Strapi from it, with their photos and slide deck in the media library | 7, 10a, 10c, 10d | Not started; a later sprint |
 
 ## Decisions agreed
 
@@ -172,6 +175,16 @@ Agreed 12 Nov 2026.
 - **Audience figures:** the talk's headcount, its share of everyone in a session at that time (for example 79 of 404 = 20%), and its share of the room's capacity. A count of 0 means not counted: the thank-you goes without figures.
 - **Transcripts come from the existing pipeline that feeds beat.joinfost.io/pulse.** Recordings are cut into talks and named with the speaker and title by a separate process, usually two weeks after the event; n8n sends a copy of each transcript to the app's API, which matches it to the talk (suggesting, with the organiser confirming when unsure). Nothing is transcribed twice. Speakers consent through the AI consent form (change 7); anyone without consent recorded is flagged rather than sent.
 
+### FOSTBeat hand-off (changes 3c and 13)
+
+Agreed 12 Nov 2026.
+
+- **Speakers can add a Bluesky profile** next to LinkedIn (change 3c). FOSTBeat's social channels are LinkedIn and Bluesky (no X), so both travel to the FOSTBeat author profile.
+- **FOSTBeat runs on Strapi.** As elsewhere, the app announces (a speaker asks for an author profile; a transcript arrives) and n8n creates the author, the draft and the media-library uploads in Strapi, reporting the results (author id, profile and draft links) back to the app.
+- **The draft is the transcript itself, never an AI rewrite.** FOSTBeat's AI use policy (business plan, section 7) allows AI only for transcription and sub-editing aids reviewed by a person; articles are written by people. The speaker writes the article from the draft.
+- **Drafts appear in the FOSTBeat-me pipeline automatically**, because it lists every Strapi post whatever created it.
+- **The thank-you's invitation to write an article or create a video** is the way in: speakers who accept become FOSTBeat creators (speaker share kits, speaker spotlights, "More from this creator").
+
 ## Open questions, and the change that must answer them
 
 | Question | Change |
@@ -187,3 +200,5 @@ Agreed 12 Nov 2026.
 | Speaker card design and what it shows | 10a |
 | Who may see a speaker's gender answer, and whether "Other" has a free-text box | 11 |
 | How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 11 |
+| Strapi's creator (author) content type and fields, and whether speakers sign in to Strapi to edit their draft or send their text another way (the Strapi audit, BEAT-003, or Alexei) | 13 |
+| Whether the FOSTBeat author profile is copied once or kept in step when the speaker updates their profile in the app | 13 |
