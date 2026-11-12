@@ -12,8 +12,8 @@ The app becomes the system of record for a speaker's whole relationship with FOS
             --> automations (n8n): receipt email, Soiree newsletter, consent form (Formbricks),
                 Pipedrive (LinkedIn to-dos; CMO outreach for vendor speakers)
             --> keeps proposal up to date --> outcome letters in waves --> confirms (or cancels)
-            --> slides, speaker card --> after the event: photos + captions, transcript,
-                attendance, consent reminder
+            --> slides, speaker card --> after the event: thank-you with their photos and
+                audience figures, then their transcript (MCs get the same)
 
  ORGANISER / COMMITTEE JOURNEY (dates relative to the conference; milestones remind, organisers send)
  intake      every proposal lands in the app and on the conference overview sheet;
@@ -21,7 +21,8 @@ The app becomes the system of record for a speaker's whole relationship with FOS
  T-3 months  first wave: yes / no / waitlist to everyone decided
  T-2 months  second wave: most of the waitlist resolved; reminders to accepted speakers
  T-1 month   final review of everything still waitlisted, then a last wave
- after       photos, transcripts, attendance import, performance dashboard
+ after       program read from the program sheet, photos matched to talks, thank-yous,
+             transcripts, performance dashboard
 ```
 
 ## Plan to the January 2027 reviews
@@ -51,15 +52,18 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | 2 | `add-email-links` | Single-use emailed links, sent via n8n: password reset for everyone, committee invites; organiser "copy reset link" fallback | 1 | Shipped and archived (7 Nov 2026) |
 | 2b | `update-default-session-formats` | Talk (25 min), Panel (25 min), Q&A Onstage (25 min) and Workshop (50 min) become the defaults and are written into every existing conference; proposals keep their submitted format | none | Shipped and archived (6 Nov 2026) |
 | 3 | `add-guest-submissions` | Apply without an account; proposal counts only after the emailed confirmation; read-only until claimed; anti-bot check | 1, 2 | Shipped and archived (7 Nov 2026) |
-| 3b | `import-existing-proposals` | Bulk upload of the Typeform CFPs (preview before saving) and a write endpoint so n8n adds each new Typeform response as it arrives; people become guests whose proposals already count; known emails attach to their account; organisers mark the early (visa) approvals as accepted and already told; `proposal.imported` event (not `proposal.submitted`) | 1, 3 | Built, awaiting merge (8 Nov 2026) |
+| 3b | `import-existing-proposals` | Bulk upload of the Typeform CFPs (preview before saving) and a write endpoint so n8n adds each new Typeform response as it arrives; people become guests whose proposals already count; known emails attach to their account; organisers mark the early (visa) approvals as accepted and already told; `proposal.imported` event (not `proposal.submitted`) | 1, 3 | Shipped (8 Nov 2026); archive once running in production |
 | 4 | `add-overview-sheet-sync` | Each conference's overview Google Sheet: a "CFPs received" tab (every proposal and its outcome) and an accepted-speakers tab with email-progress columns; the Decision column edits the app through a decision API; `proposal.decided` event; overview sheet link per conference; emails sent by n8n recorded in the app | 1, 3b | Not started |
 | 5 | `add-staged-decisions` | One "send outcomes" action that writes only to people whose situation changed; a "Speaker registration details" field per conference, emailed by n8n when a speaker confirms; speakers see an outcome once told; organisers record cancellations on a speaker's behalf; "slot freed" alert listing the waitlist; T-1 final-review alert; replaces the single "publish decisions" switch | 1, 4 | Not started |
 | 6 | `add-proposal-groups` | Same-speaker groups; vendor matching against the API & AI landscape database; confirmed sponsors read from the overview sheet's Sponsors tab; automatic waitlisting with a reason for vendor and sponsor proposals; CMO outreach in Pipedrive with a daily "drafts to send" email; sponsored-session mark | 1, 4, 5 | Not started |
 | 7 | `add-speaker-agreements` | Code of conduct (Yes/No, link to beat.joinfost.io/code-of-conduct) and AI consent (questions from the Typeform consent form), once per person, recorded in the app with date and version; a "Speaker agreements" profile section and an emailed-link page for guests; reminders every 3 days while outstanding; import of the existing Typeform consent forms | 2, 5 | Not started |
 | 8 | `add-mini-conference-committees` | Topics become mini-conferences (e.g. GreenIO) with their own committee; reviewers see only their topics | none | Not started |
 | 9 | `add-speaker-record` | Sponsor/VIP lead flags and research notes, organiser notes about a speaker | 1 | Not started |
-| 10 | `add-speaker-assets` | Slide uploads, speaker cards, photos with proposed captions, transcripts, session date and time, attendance import | 1; file storage | Not started |
-| 11 | `add-program-dashboard` | Per conference: dates 80% and 90% of the program filled, gender breakdown, most popular talks, % consent done, % slides uploaded | 8, 9, 10 | Not started |
+| 10a | `add-speaker-assets` | Before the event: slide uploads and speaker cards | 1; file storage | Not started |
+| 10b | `import-conference-program` | Reads each conference's program sheet (program tabs, MC plan, track performance): talks matched to proposals by title, MCs per stage and block, headcounts and room capacity. Unmatched items go to a list an organiser resolves. The app never builds programs | 1 | Not started |
+| 10c | `add-event-photos` | Photo sources (shared Drive folders: who took them, MC stage, clock offset); photos matched to talks and MC slots by time and stage, or by file order; organiser confirms; "your photos" on the speaker's page plus a link to the gallery | 10b | Not started |
+| 10d | `add-after-event-follow-up` | Thank-you emails to speakers and MCs within a few days, with their photos and audience figures; transcripts received from the Pulse pipeline through the API, then a "your transcript" email | 10b, 10c, 7 | Not started |
+| 11 | `add-program-dashboard` | Per conference: dates 80% and 90% of the program filled, gender breakdown, most popular talks, % consent done, % slides uploaded | 8, 9, 10a, 10b | Not started |
 | 12 | `explore-invited-speakers` | Explore how speakers FOST invites, not only those who answer the call, are brought into the app, so speaker outreach for FOST New York and FOST Singapore runs from here. Scope is decided when the change is explored | to be explored | Not started; explore and design before the end of December 2026 |
 
 ## Decisions agreed
@@ -70,7 +74,7 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **The app is the record; spreadsheets are windows onto it.** Where a sheet can change something, it goes through the app's API, and the app's answer is written back.
 - **Pipedrive is Mark's personal tool.** n8n keeps it up to date and may read it (for example to find a CMO); nothing every organiser needs lives only in Pipedrive.
 - **LinkedIn connection to-dos are Mark's only** and stay in Pipedrive. LinkedIn connections cannot be automated.
-- **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other speaker files (change 10). **Upload limits:** 3 MB per photo and 6 MB per slide deck (agreed 9 Nov 2026).
+- **Hosting:** OVHcloud or Scaleway, as a long-running server with a separate background worker. **File storage is OVHcloud Object Storage** for slides, photos and other files speakers upload (change 10a). **Upload limits:** 3 MB per photo and 6 MB per slide deck (agreed 9 Nov 2026). Event photos from photographers and MCs stay in their shared Google Drive folders and are not copied (change 10c).
 - **Production lives at a joinfost.io subdomain (for example cfp.joinfost.io) with its own database**, set up before real speaker data is imported. dev-cfp.platformable.com stays the test site and never holds real speaker data. Each environment has its own n8n endpoint, signing secret and API key.
 - **Every OpenSpec design includes a JSON Schema of its data model** (rule in `openspec/config.yaml`).
 - **Speaker outreach moves into this project** (agreed 11 Nov 2026). FOST Paris speaker outreach ran from a local tool (`~/test`) and closed on 4 November 2026; that tool is being archived. Outreach to invited speakers for FOST New York and FOST Singapore (from mid January 2027) runs from this app, through change 12.
@@ -144,6 +148,28 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 - **Program capacity differs per conference** and is only known closer to the event, so it must be editable at any time.
 - **Topic and mini-conference are the same thing.**
 
+### After the event (changes 10b, 10c, 10d)
+
+Agreed 12 Nov 2026.
+
+- **The app reads programs; it never builds them.** Programs are made in each conference's program sheet (a different domain); this app engages and supports speakers and creators. Change 10b imports from the sheet:
+  - **Talks** from the day tabs (rows are start times, columns are stages, a cell holds the title then the speakers; some cells hold several talks with their own times), matched to proposals by title.
+  - **MCs** from the MC plan, per stage and block (morning, early afternoon, late afternoon). They are part of the program like speakers.
+  - **Headcounts** from the track performance tabs, and **room capacity** from the stage headers ("STAGE 1 (162 PAX)").
+- **Unmatched program items go on a list for an organiser**, who chooses per item: match to a proposal, invited speaker (followed up; added as a guest if they have no account), or sponsor session (skipped). Choices are remembered for re-imports.
+  - **Keynotes and other invited speakers are followed up** like CFP speakers, as guests if needed (see change 12).
+  - **Sponsor sessions get no follow-up from this app.** Thanking sponsors and evaluating their experience is the partnership managers' job. "Sponsor" MC slots are skipped.
+  - **MCs named by first name only** ("Mehdi") go on the list for an organiser to match by hand.
+- **Event photos stay in their shared Google Drive folders**; the app keeps only a list (file id, name, thumbnail link, time taken) and who each photo belongs to. About 200 to 400 photos a day.
+  - **Each folder is a photo source**: who took them (the photographer or an MC), the stage (for an MC), and a clock offset (the photographer's camera can be on the wrong time; matching one known photo sets it).
+  - **Matching:** by the camera time against the program. MC photos match their stage exactly. Stages run in parallel and one photographer moves between them, so the photographer's photos are grouped into bursts and the organiser picks the stage once per burst. Photos without a camera time (some photographers' exports) are matched by file order, with the organiser marking where each talk starts. Never by face recognition.
+  - **One photo can belong to several people** (an MC introducing a speaker).
+  - **MC photos wait for an organiser's OK** before reaching anyone's page; the photographer's do not. iPhone HEIC photos are converted to JPG.
+  - **Speakers and MCs get "your photos" plus a link to the full gallery** to pick more.
+- **Follow-up arrives in two steps** (option B): a thank-you within a few days with their photos (or "your photos are coming") and audience figures, then a "your transcript is ready" email when the transcript arrives, usually after a couple of weeks. The speaker's page always shows what has arrived. MCs get the same thank-you.
+- **Audience figures:** the talk's headcount, its share of everyone in a session at that time (for example 79 of 404 = 20%), and its share of the room's capacity. A count of 0 means not counted: the thank-you goes without figures.
+- **Transcripts come from the existing pipeline that feeds beat.joinfost.io/pulse.** Recordings are cut into talks and named with the speaker and title by a separate process, usually two weeks after the event; n8n sends a copy of each transcript to the app's API, which matches it to the talk (suggesting, with the organiser confirming when unsure). Nothing is transcribed twice. Speakers consent through the AI consent form (change 7); anyone without consent recorded is flagged rather than sent.
+
 ## Open questions, and the change that must answer them
 
 | Question | Change |
@@ -156,7 +182,8 @@ Changes 5 and 6 may be built in either order; both must exist before reviews sta
 | Whether the first wave skips proposals waitlisted for a "sponsorship conversation", so those speakers hear nothing until it ends | 5, 6 |
 | How talks that sponsors buy outside the CFP are added to the program | 6 |
 | A CSV export of the existing Typeform consent forms (to map at build time) | 7 |
-| Speaker card design and what it shows | 10 |
-| Attendance spreadsheet columns | 10 |
+| Speaker card design and what it shows | 10a |
+| Whether every conference's program sheet uses the same tabs and layout (day tabs, MC plan, track performance) | 10b |
+| What else goes in the thank-you (feedback form, video link, next year's CFP) | 10d |
 | Who may see a speaker's gender answer, and whether "Other" has a free-text box | 11 |
 | How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 11 |
