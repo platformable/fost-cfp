@@ -26,6 +26,8 @@ export function ProfileForm({ profile, countries }: { profile: Profile; countrie
         <textarea name="bio" rows={6} defaultValue={v.bio} /></label>
       <label>LinkedIn profile URL
         <input name="linkedin_profile_url" inputMode="url" autoComplete="url" defaultValue={v.linkedin_profile_url} placeholder="https://www.linkedin.com/in/your-name" /></label>
+      <label>Bluesky profile <span className="opt">optional</span>
+        <input name="bluesky_profile_url" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} defaultValue={v.bluesky_profile_url} placeholder="@name.bsky.social" /></label>
       <div className="field-row">
         <label>Phone <span className="opt">organisers only</span> <input name="phone" defaultValue={v.phone} autoComplete="tel" /></label>
         <label>Country

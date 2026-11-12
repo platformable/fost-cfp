@@ -15,6 +15,7 @@ export interface User {
   job_title: string;
   bio: string;
   linkedin_profile_url: string;
+  bluesky_profile_url: string;
   phone: string;
   country: string;
   photo_url: string;

@@ -42,12 +42,12 @@ async function submissions(f: ExportFilters = {}): Promise<Row[]> {
            (SELECT COUNT(*) FROM reviews r WHERE r.proposal_id = p.id AND r.recommendation = 'maybe') AS votes_maybe,
            (SELECT COUNT(*) FROM reviews r WHERE r.proposal_id = p.id AND r.recommendation = 'reject') AS votes_reject,
            p.version, p.submitted_at, p.updated_at, p.decided_at, p.confirmed_at,
-           p.source AS _source, u.mc_interest AS _mc_interest
+           p.source AS _source, u.mc_interest AS _mc_interest, u.bluesky_profile_url AS _bluesky
     FROM proposals p JOIN users u ON u.id = p.speaker_id JOIN conferences c ON c.id = p.conference_id
     ${w.sql}
     ORDER BY c.id, p.id`, w.params);
   // New columns go after all existing ones, so sheets that read columns by position keep working.
-  return rows.map(({ _source, _mc_interest, ...r }) => ({
+  return rows.map(({ _source, _mc_interest, _bluesky, ...r }) => ({
     ...r,
     speaker_country: countryName(r.speaker_country),
     speaker_headshot_source: headshotSource(r.speaker_photo_url, r.speaker_linkedin_profile_url),
@@ -59,6 +59,7 @@ async function submissions(f: ExportFilters = {}): Promise<Row[]> {
     review_url: `${baseUrl()}/review/proposals/${r.proposal_id}`,
     source: _source,
     speaker_mc_interest: yesNo(_mc_interest),
+    speaker_bluesky_profile_url: _bluesky,
   }));
 }
 
@@ -90,6 +91,7 @@ async function program(f: ExportFilters = {}): Promise<Row[]> {
     confirmed_at: r.confirmed_at,
     decided_at: r.decided_at,
     updated_at: r.updated_at,
+    speaker_bluesky_profile_url: r.speaker_bluesky_profile_url,
   }));
 }
 
@@ -106,16 +108,17 @@ async function speakers(f: ExportFilters = {}): Promise<Row[]> {
            COUNT(*) FILTER (WHERE p.status = 'withdrawn') AS proposals_withdrawn,
            COUNT(*) FILTER (WHERE p.speaker_confirmation = 'confirmed') AS talks_confirmed,
            string_agg(DISTINCT c.name, ',') AS conferences,
-           u.created_at, u.updated_at, (u.password_hash = '') AS _guest, u.mc_interest AS _mc_interest
+           u.created_at, u.updated_at, (u.password_hash = '') AS _guest, u.mc_interest AS _mc_interest, u.bluesky_profile_url AS _bluesky
     FROM users u JOIN proposals p ON p.speaker_id = u.id JOIN conferences c ON c.id = p.conference_id
     ${w.sql}
     GROUP BY u.id
     ORDER BY lower(u.last_name), lower(u.first_name)`, w.params);
   // account_status goes after every existing column, so sheets that read columns by position keep working.
-  return rows.map(({ _guest, _mc_interest, ...r }) => ({
+  return rows.map(({ _guest, _mc_interest, _bluesky, ...r }) => ({
     ...r, country: countryName(r.country), headshot_source: headshotSource(r.photo_url, r.linkedin_profile_url),
     account_status: _guest ? 'guest' : 'active',
     mc_interest: yesNo(_mc_interest),
+    bluesky_profile_url: _bluesky,
   }));
 }
 

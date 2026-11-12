@@ -123,6 +123,8 @@ Go to **Organise → Spreadsheet exports**. Datasets, one row per item:
 | `conferences` | Settings and headline numbers |
 | `workbook` | All of the above as tabs in one `.xlsx` file |
 
+New columns are only ever added at the end, so sheets that read columns by position keep working. The latest are the speaker's Bluesky profile (`bluesky_profile_url` in `speakers`, `speaker_bluesky_profile_url` in `submissions` and `program`), stored as `https://bsky.app/profile/<handle>` whatever form the speaker typed it in.
+
 Signed-in admins download from `/admin/export/<dataset>.<csv|xlsx|json>`. For automation, the same files are served from a secret-token URL that needs no login:
 
 ```
@@ -168,7 +170,7 @@ Every delivery body looks like this:
 }
 ```
 
-`data.proposal` (or `data.speaker` for speaker events) contains everything n8n usually needs: the talk, the speaker's name, email, job title, organisation, bio, LinkedIn URL, country, headshot and whether they are open to being an MC (`mc_interest`: `true`, `false` or `null`), and the conference, including `date_precision` (`day`, or `month` while only the month is known). The status is what the speaker sees, so an unpublished decision shows as `under review`; internal notes, reviews and scores are never sent.
+`data.proposal` (or `data.speaker` for speaker events) contains everything n8n usually needs: the talk, the speaker's name, email, job title, organisation, bio, LinkedIn URL, Bluesky profile (`bluesky_profile_url`, always `https://bsky.app/profile/<handle>`, or `null`), country, headshot and whether they are open to being an MC (`mc_interest`: `true`, `false` or `null`), and the conference, including `date_precision` (`day`, or `month` while only the month is known). The status is what the speaker sees, so an unpublished decision shows as `under review`; internal notes, reviews and scores are never sent.
 
 Each delivery carries `X-FOST-Event-Id`, `X-FOST-Event-Type`, `X-FOST-Timestamp` (Unix seconds) and `X-FOST-Signature`: `sha256=` followed by the hex HMAC-SHA256 of `<timestamp>.<raw body>`, keyed with the endpoint's signing secret. Only a 2xx answer within 10 seconds counts as delivered; anything else is retried after about 1 min, 5 min, 15 min, 1 h, 3 h, 6 h, 12 h and 24 h, then marked failed. A delivery can arrive more than once, so de-duplicate by `id`.
 
