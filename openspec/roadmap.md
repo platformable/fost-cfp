@@ -156,6 +156,7 @@ Agreed 12 Nov 2026.
   - **Talks** from the day tabs (rows are start times, columns are stages, a cell holds the title then the speakers; some cells hold several talks with their own times), matched to proposals by title.
   - **MCs** from the MC plan, per stage and block (morning, early afternoon, late afternoon). They are part of the program like speakers.
   - **Headcounts** from the track performance tabs, and **room capacity** from the stage headers ("STAGE 1 (162 PAX)").
+- **Every program sheet has the same tabs and layout**; some have extra tabs, which the import ignores. Sheets can hold small errors (for example a track performance tab for day 2 headed "Day 1"), so the import shows a preview and warns about anything inconsistent, such as a tab's day heading not matching its name, instead of trusting it silently.
 - **Unmatched program items go on a list for an organiser**, who chooses per item: match to a proposal, invited speaker (followed up; added as a guest if they have no account), or sponsor session (skipped). Choices are remembered for re-imports.
   - **Keynotes and other invited speakers are followed up** like CFP speakers, as guests if needed (see change 12).
   - **Sponsor sessions get no follow-up from this app.** Thanking sponsors and evaluating their experience is the partnership managers' job. "Sponsor" MC slots are skipped.
@@ -183,7 +184,6 @@ Agreed 12 Nov 2026.
 | How talks that sponsors buy outside the CFP are added to the program | 6 |
 | A CSV export of the existing Typeform consent forms (to map at build time) | 7 |
 | Speaker card design and what it shows | 10a |
-| Whether every conference's program sheet uses the same tabs and layout (day tabs, MC plan, track performance) | 10b |
 | What else goes in the thank-you (feedback form, video link, next year's CFP) | 10d |
 | Who may see a speaker's gender answer, and whether "Other" has a free-text box | 11 |
 | How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 11 |
