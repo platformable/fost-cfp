@@ -168,6 +168,7 @@ Agreed 12 Nov 2026.
   - **MC photos wait for an organiser's OK** before reaching anyone's page; the photographer's do not. iPhone HEIC photos are converted to JPG.
   - **Speakers and MCs get "your photos" plus a link to the full gallery** to pick more.
 - **Follow-up arrives in two steps** (option B): a thank-you within a few days with their photos (or "your photos are coming") and audience figures, then a "your transcript is ready" email when the transcript arrives, usually after a couple of weeks. The speaker's page always shows what has arrived. MCs get the same thank-you.
+- **The thank-you holds:** thanks, their photos, their audience figures, and an invitation to write the talk up as an article or create a video for FOSTBeat. A feedback form comes in a later sprint.
 - **Audience figures:** the talk's headcount, its share of everyone in a session at that time (for example 79 of 404 = 20%), and its share of the room's capacity. A count of 0 means not counted: the thank-you goes without figures.
 - **Transcripts come from the existing pipeline that feeds beat.joinfost.io/pulse.** Recordings are cut into talks and named with the speaker and title by a separate process, usually two weeks after the event; n8n sends a copy of each transcript to the app's API, which matches it to the talk (suggesting, with the organiser confirming when unsure). Nothing is transcribed twice. Speakers consent through the AI consent form (change 7); anyone without consent recorded is flagged rather than sent.
 
@@ -184,6 +185,5 @@ Agreed 12 Nov 2026.
 | How talks that sponsors buy outside the CFP are added to the program | 6 |
 | A CSV export of the existing Typeform consent forms (to map at build time) | 7 |
 | Speaker card design and what it shows | 10a |
-| What else goes in the thank-you (feedback form, video link, next year's CFP) | 10d |
 | Who may see a speaker's gender answer, and whether "Other" has a free-text box | 11 |
 | How "program filled" is counted (accepted, or accepted and confirmed) against capacity | 11 |
