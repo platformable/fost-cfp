@@ -156,7 +156,7 @@ describe('importing a file', () => {
     assert.equal(list.length, 2);
     const rows = await exp.DATASETS.submissions({});
     assert.equal(rows.length, 5);
-    assert.deepEqual(Object.keys(rows[0]).slice(-2), ['source', 'speaker_mc_interest']);
+    assert.deepEqual(Object.keys(rows[0]).slice(-3), ['source', 'speaker_mc_interest', 'speaker_bluesky_profile_url']);
     assert.equal(rows[0].source, 'typeform_import');
     const text = JSON.stringify(await Promise.all(Object.values(exp.DATASETS).map((d) => d({}))));
     assert.ok(!text.includes('Fermale') && !/"gender"/.test(text), 'no gender in any export');
@@ -229,7 +229,7 @@ describe('existing accounts and the profile fields', () => {
     assert.match(users.readProfile(form({ ...base, gender: 'Robot' })).error!, /from the list/);
     const speakersRow = (await exp.DATASETS.speakers({})).find((r) => r.email === 'ada@example.com')!;
     assert.equal(speakersRow.mc_interest, 'no');
-    assert.equal(Object.keys(speakersRow).at(-1), 'mc_interest');
+    assert.deepEqual(Object.keys(speakersRow).slice(-2), ['mc_interest', 'bluesky_profile_url']);
   });
 
   test("a reviewer's view of a proposal has no gender", async () => {

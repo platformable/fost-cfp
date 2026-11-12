@@ -49,6 +49,7 @@ export interface ProposalDetail extends Proposal {
   speaker_job_title: string;
   speaker_bio: string;
   speaker_linkedin_profile_url: string;
+  speaker_bluesky_profile_url: string;
   speaker_country: string;
   speaker_photo_url: string;
   conference_name: string;
@@ -59,7 +60,7 @@ export async function getProposal(id: number): Promise<ProposalDetail | null> {
   if (!Number.isInteger(id)) return null;
   return one<ProposalDetail>(`
     SELECT p.*, u.name AS speaker_name, u.email AS speaker_email, u.organization AS speaker_organization,
-           u.job_title AS speaker_job_title, u.bio AS speaker_bio, u.linkedin_profile_url AS speaker_linkedin_profile_url,
+           u.job_title AS speaker_job_title, u.bio AS speaker_bio, u.linkedin_profile_url AS speaker_linkedin_profile_url, u.bluesky_profile_url AS speaker_bluesky_profile_url,
            u.country AS speaker_country, u.photo_url AS speaker_photo_url,
            c.name AS conference_name, c.slug AS conference_slug
     FROM proposals p JOIN users u ON u.id = p.speaker_id JOIN conferences c ON c.id = p.conference_id

@@ -17,6 +17,7 @@ export interface SpeakerPayload {
   organization: string;
   bio: string;
   linkedin_profile_url: string | null;
+  bluesky_profile_url: string | null;
   country: string | null;
   country_code: string | null;
   photo_url: string | null;
@@ -60,7 +61,7 @@ export interface ProposalPayload {
   conference: ConferencePayload;
 }
 
-const SPEAKER_COLUMNS = ['id', 'name', 'first_name', 'last_name', 'email', 'job_title', 'organization', 'bio', 'linkedin_profile_url', 'country', 'photo_url', 'mc_interest'];
+const SPEAKER_COLUMNS = ['id', 'name', 'first_name', 'last_name', 'email', 'job_title', 'organization', 'bio', 'linkedin_profile_url', 'country', 'photo_url', 'mc_interest', 'bluesky_profile_url'];
 const CONFERENCE_COLUMNS = ['id', 'name', 'slug', 'location', 'start_date', 'end_date', 'date_precision', 'cfp_opens', 'cfp_closes'];
 const CONFERENCE_READ = [...CONFERENCE_COLUMNS, 'decisions_published'];
 const PROPOSAL_COLUMNS = ['id', 'title', 'abstract', 'format', 'topic', 'level', 'co_speakers', 'status', 'speaker_confirmation', 'version', 'submitted_at', 'updated_at'];
@@ -79,6 +80,7 @@ export function speakerPayload(u: Row): SpeakerPayload {
     organization: u.organization,
     bio: u.bio,
     linkedin_profile_url: orNull(u.linkedin_profile_url),
+    bluesky_profile_url: orNull(u.bluesky_profile_url),
     country: orNull(countryName(u.country)),
     country_code: orNull(u.country),
     photo_url: orNull(u.photo_url),

@@ -5,7 +5,7 @@ import { findUserByEmail, hashPassword, verifyPassword, type Role, type User } f
 import { isCountryCode } from './countries';
 import { safeUrl } from './format';
 
-export const PROFILE_FIELDS = ['first_name', 'last_name', 'organization', 'job_title', 'bio', 'linkedin_profile_url', 'phone', 'country', 'photo_url'] as const;
+export const PROFILE_FIELDS = ['first_name', 'last_name', 'organization', 'job_title', 'bio', 'linkedin_profile_url', 'phone', 'country', 'photo_url', 'bluesky_profile_url'] as const;
 // Optional answers kept apart from PROFILE_FIELDS: gender is seen only by the speaker and organisers
 // and never leaves the app; mc_interest goes to automations. undefined = not on the form, leave as is.
 export const GENDERS = ['Female', 'Male', 'Prefer not to say', 'Other'] as const;
@@ -52,6 +52,23 @@ export function normalizeLinkedIn(value: string): string | null {
   }
 }
 
+// Bluesky handles: two or more dot-separated parts of letters, digits and hyphens (1-63 characters,
+// no hyphen at either end), the last starting with a letter, 253 characters at most. Lower case.
+const BLUESKY_HANDLE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
+// Account identifiers Bluesky uses in profile addresses (did:plc:... and did:web:...).
+const BLUESKY_DID = /^did:(plc|web):[a-z0-9._:%-]+$/;
+
+// Returns https://bsky.app/profile/<handle> for a handle (with or without @) or a bsky.app profile
+// or post address, or null if the value isn't one. Does not check that the account exists.
+export function normalizeBluesky(value: string): string | null {
+  let v = value.trim().replace(/^@/, '');
+  const m = v.match(/^(?:https?:\/\/)?(?:www\.)?bsky\.app\/profile\/([^/?#]+)/i);
+  if (m) v = m[1];
+  else if (/[/:]/.test(v) && !/^did:/i.test(v)) return null; // another site's address
+  v = v.toLowerCase();
+  return BLUESKY_HANDLE.test(v) || BLUESKY_DID.test(v) ? `https://bsky.app/profile/${v}` : null;
+}
+
 export function readProfile(form: FormData): { values: ProfileValues; error: string | null } {
   const values = Object.fromEntries(PROFILE_FIELDS.map((f) => [f, String(form.get(f) ?? '').trim()])) as unknown as ProfileValues;
   let error: string | null = null;
@@ -70,6 +87,11 @@ export function readProfile(form: FormData): { values: ProfileValues; error: str
     const url = normalizeLinkedIn(values.linkedin_profile_url);
     if (url === null) error = 'LinkedIn profile URL must be a linkedin.com address, like https://www.linkedin.com/in/your-name.';
     else values.linkedin_profile_url = url;
+  }
+  if (!error && values.bluesky_profile_url) {
+    const url = normalizeBluesky(values.bluesky_profile_url);
+    if (url === null) error = 'Bluesky profile must be a handle like @name.bsky.social or a bsky.app address, like https://bsky.app/profile/name.bsky.social.';
+    else values.bluesky_profile_url = url;
   }
   return { values, error };
 }

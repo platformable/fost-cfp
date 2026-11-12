@@ -80,6 +80,37 @@ describe('accounts', () => {
     await users.saveProfile(ada.id, ok.values);
     assert.equal((await one<{ name: string }>('SELECT name FROM users WHERE id = $1', [ada.id]))!.name, 'Ada King-Lovelace');
   });
+
+  test('profile: Bluesky handles and addresses are stored as one address form', () => {
+    const stored = (v: string) => users.readProfile(form({ first_name: 'Ada', bluesky_profile_url: v }));
+    const cases: [string, string][] = [
+      ['@Ada.bsky.social', 'https://bsky.app/profile/ada.bsky.social'],
+      ['  @ada.bsky.social ', 'https://bsky.app/profile/ada.bsky.social'],
+      ['mark.platformable.com', 'https://bsky.app/profile/mark.platformable.com'],
+      ['bsky.app/profile/ada.bsky.social/post/3kabc', 'https://bsky.app/profile/ada.bsky.social'],
+      ['https://bsky.app/profile/Ada.bsky.social', 'https://bsky.app/profile/ada.bsky.social'],
+      ['https://www.bsky.app/profile/ada.bsky.social?ref=x', 'https://bsky.app/profile/ada.bsky.social'],
+      ['https://bsky.app/profile/did:plc:abc123xyz', 'https://bsky.app/profile/did:plc:abc123xyz'],
+      [`${'a'.repeat(63)}.bsky.social`, `https://bsky.app/profile/${'a'.repeat(63)}.bsky.social`],
+    ];
+    for (const [input, want] of cases) {
+      const r = stored(input);
+      assert.equal(r.error, null, input);
+      assert.equal(r.values.bluesky_profile_url, want, input);
+    }
+    const empty = stored('');
+    assert.equal(empty.error, null);
+    assert.equal(empty.values.bluesky_profile_url, '');
+  });
+
+  test('profile: values that are not Bluesky profiles are refused', () => {
+    for (const bad of ['https://x.com/ada', 'ada lovelace', 'ada', `${'a'.repeat(64)}.bsky.social`, '-ada.bsky.social', 'ada.123',
+      'https://evil.example/bsky.app/profile/ada.bsky.social', 'https://bsky.app/ada']) {
+      const r = users.readProfile(form({ first_name: 'Ada', last_name: 'Lovelace', bluesky_profile_url: bad }));
+      assert.match(r.error ?? '', /Bluesky profile must be a handle like @name\.bsky\.social or a bsky\.app address/, bad);
+      assert.equal(r.values.last_name, 'Lovelace', 'other answers kept');
+    }
+  });
 });
 
 describe('proposal lifecycle', () => {
@@ -209,6 +240,19 @@ describe('proposal lifecycle', () => {
 
     const f = await exp.filtersFrom(new URLSearchParams('conference=api-conf-2027&status=accepted&updated_since=nonsense'));
     assert.deepEqual(f, { conferenceId: conf.id, slug: 'api-conf-2027', status: 'accepted' });
+
+    // A Bluesky profile is the last column of the speakers, submissions and program exports.
+    await query(`UPDATE users SET bluesky_profile_url = 'https://bsky.app/profile/ada.bsky.social' WHERE email = 'ada@example.com'`);
+    const bsky = 'https://bsky.app/profile/ada.bsky.social';
+    const sRow = (await exp.DATASETS.speakers({})).find((s) => s.email === 'ada@example.com')!;
+    assert.equal(Object.keys(sRow).at(-1), 'bluesky_profile_url');
+    assert.equal(sRow.bluesky_profile_url, bsky);
+    const [subRow] = await exp.DATASETS.submissions({ conferenceId: conf.id });
+    assert.equal(Object.keys(subRow).at(-1), 'speaker_bluesky_profile_url');
+    assert.equal(subRow.speaker_bluesky_profile_url, bsky);
+    const [progRow] = await exp.DATASETS.program({});
+    assert.deepEqual(Object.keys(progRow).slice(-2), ['updated_at', 'speaker_bluesky_profile_url']);
+    assert.equal(progRow.speaker_bluesky_profile_url, bsky);
 
     const res = await exp.exportResponse('workbook', 'xlsx', { conferenceId: conf.id, slug: conf.slug });
     assert.match(res.headers.get('content-disposition')!, /api-conf-2027-workbook-/);

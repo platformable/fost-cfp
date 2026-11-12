@@ -28,6 +28,7 @@ export default async function ReviewProposal({ params }: { params: Promise<{ id:
   const showOthers = admin || !!mine;
   const avg = all.length ? Math.round((all.reduce((n, r) => n + r.score, 0) / all.length) * 100) / 100 : null;
   const linkedin = safeUrl(p.speaker_linkedin_profile_url);
+  const bluesky = safeUrl(p.speaker_bluesky_profile_url);
   const topics = p.topic && !conf.topicList.includes(p.topic) ? [...conf.topicList, p.topic] : conf.topicList;
 
   return (
@@ -65,6 +66,7 @@ export default async function ReviewProposal({ params }: { params: Promise<{ id:
                   ].filter(Boolean).join(' · ')}</span></>
                 )}
                 {linkedin && <><br /><a href={linkedin} target="_blank" rel="noopener">LinkedIn profile</a></>}
+                {bluesky && <>{linkedin ? ' · ' : <br />}<a href={bluesky} target="_blank" rel="noopener">Bluesky profile</a></>}
               </p>
               {p.speaker_bio && <Prose>{p.speaker_bio}</Prose>}
               {p.co_speakers && <><h3>Co-speakers</h3><Prose>{p.co_speakers}</Prose></>}

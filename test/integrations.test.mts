@@ -125,7 +125,7 @@ describe('payloads', () => {
     assert.deepEqual(Object.keys(p).sort(), ['abstract', 'co_speakers', 'conference', 'format', 'id', 'level', 'proposal_url', 'review_url',
       'speaker', 'speaker_confirmation', 'status', 'submitted_at', 'title', 'topic', 'updated_at', 'version'].sort());
     assert.deepEqual(Object.keys(p.speaker).sort(), ['account_status', 'bio', 'mc_interest', 'country', 'country_code', 'email', 'first_name', 'headshot_source', 'id', 'job_title',
-      'last_name', 'linkedin_profile_url', 'name', 'organization', 'photo_url'].sort());
+      'last_name', 'linkedin_profile_url', 'bluesky_profile_url', 'name', 'organization', 'photo_url'].sort());
     assert.deepEqual(Object.keys(p.conference).sort(), ['cfp_closes', 'cfp_opens', 'date_precision', 'end_date', 'id', 'location', 'name', 'slug',
       'start_date', 'url'].sort());
     assert.equal(p.status, 'under review');
@@ -133,7 +133,7 @@ describe('payloads', () => {
     assert.equal(p.proposal_url, `http://cfp.test/proposals/${p.id}`);
     assert.deepEqual(p.speaker, {
       id: adaId, name: 'Ada Lovelace', first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com', job_title: 'Mathematician',
-      organization: 'Analytical Engines', bio: 'First programmer.', linkedin_profile_url: 'https://www.linkedin.com/in/ada',
+      organization: 'Analytical Engines', bio: 'First programmer.', linkedin_profile_url: 'https://www.linkedin.com/in/ada', bluesky_profile_url: null,
       country: 'United Kingdom', country_code: 'GB', photo_url: null, headshot_source: 'linkedin', account_status: 'active', mc_interest: null,
     });
     assert.deepEqual(p.conference, {
@@ -195,6 +195,22 @@ describe('recording events', () => {
     assert.deepEqual(evs.at(-1)!.data.changed_fields, ['bio', 'country']);
     assert.equal(evs.at(-1)!.data.speaker.bio, 'Admiral.');
     assert.equal(evs.at(-1)!.data.speaker.country, 'United States');
+  });
+
+  test('a Bluesky profile is announced when added or cleared, not on an unchanged save', async () => {
+    const before = (await eventsOfType('speaker.profile_updated')).length;
+    const base = { first_name: 'Grace', last_name: 'Hopper', bio: 'Admiral.', country: 'US' };
+    const added = users.readProfile(form({ ...base, bluesky_profile_url: '@Grace.bsky.social' })).values;
+    assert.deepEqual(await users.saveProfile(graceId, added), ['bluesky_profile_url']);
+    let evs = await eventsOfType('speaker.profile_updated');
+    assert.equal(evs.at(-1)!.data.speaker.bluesky_profile_url, 'https://bsky.app/profile/grace.bsky.social');
+    assert.deepEqual(await users.saveProfile(graceId, added), [], 'unchanged save');
+    assert.equal((await eventsOfType('speaker.profile_updated')).length, before + 1);
+    assert.deepEqual(await users.saveProfile(graceId, users.readProfile(form(base)).values), ['bluesky_profile_url']);
+    evs = await eventsOfType('speaker.profile_updated');
+    assert.equal(evs.length, before + 2);
+    assert.equal(evs.at(-1)!.data.speaker.bluesky_profile_url, null);
+    assert.equal((await one<{ bluesky_profile_url: string }>('SELECT bluesky_profile_url FROM users WHERE id = $1', [graceId]))!.bluesky_profile_url, '');
   });
 
   test('proposal events: one submitted per conference, updated only on change, withdrawn, confirmed, declined', async () => {
@@ -453,6 +469,11 @@ describe('integration API', () => {
     const s = await api('GET', `/api/v1/speakers/${adaId}`, readKey, { id: String(adaId) });
     assert.equal(s.body.email, 'ada@example.com');
     assert.deepEqual(Object.keys(s.body).sort(), Object.keys(ev.data.proposal.speaker).sort());
+    assert.equal(s.body.bluesky_profile_url, null);
+    await query(`UPDATE users SET bluesky_profile_url = 'https://bsky.app/profile/ada.bsky.social' WHERE id = $1`, [adaId]);
+    const withBluesky = await api('GET', `/api/v1/speakers/${adaId}`, readKey, { id: String(adaId) });
+    assert.equal(withBluesky.body.bluesky_profile_url, 'https://bsky.app/profile/ada.bsky.social');
+    await query(`UPDATE users SET bluesky_profile_url = '' WHERE id = $1`, [adaId]);
     const bySlug = await api('GET', `/api/v1/conferences/${conf.slug}`, readKey, { conference: conf.slug });
     assert.equal(bySlug.body.id, conf.id);
     const committee = await api('GET', `/api/v1/conferences/${conf.id}/committee`, readKey, { conference: String(conf.id) });
@@ -514,7 +535,7 @@ describe('integration API', () => {
       'average_score', 'votes_accept', 'votes_maybe', 'votes_reject', 'version', 'submitted_at', 'updated_at', 'decided_at', 'confirmed_at',
       'speaker_headshot_source', 'proposal_url', 'review_url',
       // Added later, after every earlier column:
-      'source', 'speaker_mc_interest'].join(','));
+      'source', 'speaker_mc_interest', 'speaker_bluesky_profile_url'].join(','));
     assert.equal((await get(readKey, 'submissions.csv')).status, 401, 'an API key does not open export links');
     assert.equal((await api('GET', '/api/v1/conferences', token)).status, 401, 'the export token is not an API key');
   });
